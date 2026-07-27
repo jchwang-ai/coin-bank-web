@@ -1,11 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
-import { useSwipeTabs } from '@/hooks/useSwipeTabs';
+import SwipeableViews from '@/components/SwipeableViews';
 import { getChildData, buyCoupon, useCoupon, updateChildPhoto } from './actions';
 
 const TABS = [
@@ -37,8 +37,11 @@ interface Transaction {
   created_at: string;
 }
 
-export default function ChildPage() {
+function ChildContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isPreview = searchParams.get('preview') === 'parent';
+
   const [activeTab, setActiveTab] = useState<string>('shop');
   const [balance, setBalance] = useState<number>(0);
   const [childName, setChildName] = useState<string>('나');
@@ -136,9 +139,11 @@ export default function ChildPage() {
     }
   };
 
-  const handleLogout = () => router.push('/');
+  const handleExit = () => {
+    router.push(isPreview ? '/parent' : '/');
+  };
 
-  const swipeHandlers = useSwipeTabs(TAB_IDS, activeTab, setActiveTab);
+  const activeIndex = Math.max(TAB_IDS.indexOf(activeTab), 0);
 
   if (isLoading && balance === 0 && shops.length === 0) {
     return <div className="text-center pt-24 text-[#8e8e93]">로딩 중...</div>;
@@ -148,11 +153,17 @@ export default function ChildPage() {
     <div className="min-h-screen pb-24">
       {/* Header */}
       <div className="px-5 pt-6 pb-4 safe-top">
+        {isPreview && (
+          <div className="flex items-center gap-1.5 mb-3 text-[12px] font-semibold text-purple-600 bg-purple-50 rounded-full px-3 py-1.5 w-fit">
+            <span>👀</span>
+            <span>부모님 미리보기 모드</span>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <AvatarUpload
               photoUrl={photoUrl}
-              editable
+              editable={!isPreview}
               size={56}
               onUpload={handlePhotoUpload}
               fallbackEmoji="👧"
@@ -163,10 +174,10 @@ export default function ChildPage() {
             </div>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={handleExit}
             className="text-[13px] font-medium text-[#8e8e93] px-3 py-1.5 rounded-full bg-black/5 active:bg-black/10 transition-colors"
           >
-            나가기
+            {isPreview ? '돌아가기' : '나가기'}
           </button>
         </div>
 
@@ -182,14 +193,12 @@ export default function ChildPage() {
       </div>
 
       {/* Content */}
-      <div
-        className="px-5 min-h-[40vh]"
-        onTouchStart={swipeHandlers.onTouchStart}
-        onTouchMove={swipeHandlers.onTouchMove}
-        onTouchEnd={swipeHandlers.onTouchEnd}
+      <SwipeableViews
+        activeIndex={activeIndex}
+        onIndexChange={(i) => setActiveTab(TAB_IDS[i])}
       >
-        {activeTab === 'shop' && (
-          <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+        {[
+          <div key="shop" className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
             {shops.length === 0 ? (
               <p className="text-center text-[#8e8e93] py-10 text-[15px]">상점이 비어있어요</p>
             ) : (
@@ -219,11 +228,9 @@ export default function ChildPage() {
                 </div>
               ))
             )}
-          </div>
-        )}
+          </div>,
 
-        {activeTab === 'coupons' && (
-          <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+          <div key="coupons" className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
             {coupons.length === 0 ? (
               <p className="text-center text-[#8e8e93] py-10 text-[15px]">아직 쿠폰이 없어요</p>
             ) : (
@@ -255,11 +262,9 @@ export default function ChildPage() {
                 </div>
               ))
             )}
-          </div>
-        )}
+          </div>,
 
-        {activeTab === 'history' && (
-          <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+          <div key="history" className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
             {transactions.length === 0 ? (
               <p className="text-center text-[#8e8e93] py-10 text-[15px]">아직 기록이 없어요</p>
             ) : (
@@ -280,12 +285,20 @@ export default function ChildPage() {
                 </div>
               ))
             )}
-          </div>
-        )}
-      </div>
+          </div>,
+        ]}
+      </SwipeableViews>
 
       <TabBar items={TABS} activeId={activeTab} onChange={setActiveTab} accentColor="#db2777" />
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
     </div>
+  );
+}
+
+export default function ChildPage() {
+  return (
+    <Suspense fallback={<div className="text-center pt-24 text-[#8e8e93]">로딩 중...</div>}>
+      <ChildContent />
+    </Suspense>
   );
 }

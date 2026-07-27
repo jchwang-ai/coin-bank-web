@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
-import { useSwipeTabs } from '@/hooks/useSwipeTabs';
+import SwipeableViews from '@/components/SwipeableViews';
 import {
   getParentData,
   giveCoins,
@@ -235,8 +235,9 @@ export default function ParentPage() {
   };
 
   const handleLogout = () => router.push('/');
+  const handlePreviewChild = () => router.push('/child?preview=parent');
 
-  const swipeHandlers = useSwipeTabs(TAB_IDS, activeTab, setActiveTab);
+  const activeIndex = Math.max(TAB_IDS.indexOf(activeTab), 0);
 
   if (isLoading && balance === 0 && shops.length === 0) {
     return <div className="text-center pt-24 text-[#8e8e93]">로딩 중...</div>;
@@ -274,14 +275,12 @@ export default function ParentPage() {
       </div>
 
       {/* Content */}
-      <div
-        className="px-5 space-y-5 min-h-[40vh]"
-        onTouchStart={swipeHandlers.onTouchStart}
-        onTouchMove={swipeHandlers.onTouchMove}
-        onTouchEnd={swipeHandlers.onTouchEnd}
+      <SwipeableViews
+        activeIndex={activeIndex}
+        onIndexChange={(i) => setActiveTab(TAB_IDS[i])}
       >
-        {activeTab === 'coins' && (
-          <>
+        {[
+          <div key="coins" className="space-y-5">
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">하트 개수</p>
               <div className="grid grid-cols-4 gap-2 mb-3">
@@ -337,11 +336,9 @@ export default function ParentPage() {
                 💔 하트 빼기
               </button>
             </div>
-          </>
-        )}
+          </div>,
 
-        {activeTab === 'shop' && (
-          <>
+          <div key="shop" className="space-y-5">
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
               {shops.length === 0 ? (
                 <p className="text-center text-[#8e8e93] py-10 text-[15px]">쿠폰이 없어요</p>
@@ -437,11 +434,20 @@ export default function ParentPage() {
                 쿠폰 추가하기
               </button>
             </div>
-          </>
-        )}
+          </div>,
 
-        {activeTab === 'settings' && (
-          <>
+          <div key="settings" className="space-y-5">
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">아이 화면 미리보기</p>
+              <button
+                onClick={handlePreviewChild}
+                className="w-full py-3.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <span>👀</span>
+                아이 화면으로 들어가보기
+              </button>
+            </div>
+
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">자녀 이름</p>
               <input
@@ -480,11 +486,9 @@ export default function ParentPage() {
                 비밀번호 변경
               </button>
             </div>
-          </>
-        )}
+          </div>,
 
-        {activeTab === 'logs' && (
-          <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+          <div key="logs" className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
             {logs.length === 0 ? (
               <p className="text-center text-[#8e8e93] py-10 text-[15px]">접속 기록이 없어요</p>
             ) : (
@@ -508,9 +512,9 @@ export default function ParentPage() {
                 </div>
               ))
             )}
-          </div>
-        )}
-      </div>
+          </div>,
+        ]}
+      </SwipeableViews>
 
       <TabBar items={TABS} activeId={activeTab} onChange={setActiveTab} accentColor="#9333ea" />
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
