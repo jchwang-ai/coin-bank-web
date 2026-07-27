@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
+import { useSwipeTabs } from '@/hooks/useSwipeTabs';
 import { getChildData, buyCoupon, useCoupon, updateChildPhoto } from './actions';
 
 const TABS = [
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'coupons', label: '내 쿠폰', icon: '🎟️' },
   { id: 'history', label: '기록', icon: '📜' },
 ];
+const TAB_IDS = TABS.map((t) => t.id);
 
 interface ShopItem {
   id: string;
@@ -136,6 +138,8 @@ export default function ChildPage() {
 
   const handleLogout = () => router.push('/');
 
+  const swipeHandlers = useSwipeTabs(TAB_IDS, activeTab, setActiveTab);
+
   if (isLoading && balance === 0 && shops.length === 0) {
     return <div className="text-center pt-24 text-[#8e8e93]">로딩 중...</div>;
   }
@@ -178,7 +182,12 @@ export default function ChildPage() {
       </div>
 
       {/* Content */}
-      <div className="px-5">
+      <div
+        className="px-5 min-h-[40vh]"
+        onTouchStart={swipeHandlers.onTouchStart}
+        onTouchMove={swipeHandlers.onTouchMove}
+        onTouchEnd={swipeHandlers.onTouchEnd}
+      >
         {activeTab === 'shop' && (
           <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
             {shops.length === 0 ? (

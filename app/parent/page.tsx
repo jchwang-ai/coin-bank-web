@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
+import { useSwipeTabs } from '@/hooks/useSwipeTabs';
 import {
   getParentData,
   giveCoins,
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'settings', label: '설정', icon: '⚙️' },
   { id: 'logs', label: '기록', icon: '📋' },
 ];
+const TAB_IDS = TABS.map((t) => t.id);
 
 interface ShopItem {
   id: string;
@@ -65,6 +67,7 @@ export default function ParentPage() {
   const [editPrice, setEditPrice] = useState<string>('');
 
   const [reason, setReason] = useState<string>('');
+  const [amount, setAmount] = useState<string>('1');
   const [newItemName, setNewItemName] = useState<string>('');
   const [newItemPrice, setNewItemPrice] = useState<string>('');
   const [newChildPin, setNewChildPin] = useState<string>('');
@@ -100,14 +103,25 @@ export default function ParentPage() {
     }
   }, [activeTab]);
 
-  const handleGiveCoins = async (amount: number) => {
+  const handleGiveCoins = async (isGive: boolean) => {
+    const qty = parseInt(amount, 10);
+    if (!qty || qty < 1) {
+      setToast('하트 개수를 입력해주세요');
+      return;
+    }
+    if (!reason.trim()) {
+      setToast('이유를 적어주세요 ✏️');
+      return;
+    }
+
+    const delta = isGive ? qty : -qty;
     try {
       setIsLoading(true);
-      const desc = reason || (amount > 0 ? '잘했어요!' : '하트 차감');
-      await giveCoins(amount, desc);
-      setBalance(balance + amount);
+      await giveCoins(delta, reason.trim());
+      setBalance(balance + delta);
+      setToast(isGive ? `+${qty} 하트를 줬어요 💖` : `−${qty} 하트를 뺐어요`);
       setReason('');
-      setToast(amount > 0 ? `+${amount} 하트를 줬어요 💖` : `${amount} 하트 뺐어요`);
+      setAmount('1');
 
       const data = await getParentData();
       if (data.child) setBalance((data.child as any).balance);
@@ -222,6 +236,8 @@ export default function ParentPage() {
 
   const handleLogout = () => router.push('/');
 
+  const swipeHandlers = useSwipeTabs(TAB_IDS, activeTab, setActiveTab);
+
   if (isLoading && balance === 0 && shops.length === 0) {
     return <div className="text-center pt-24 text-[#8e8e93]">로딩 중...</div>;
   }
@@ -258,34 +274,44 @@ export default function ParentPage() {
       </div>
 
       {/* Content */}
-      <div className="px-5 space-y-5">
+      <div
+        className="px-5 space-y-5 min-h-[40vh]"
+        onTouchStart={swipeHandlers.onTouchStart}
+        onTouchMove={swipeHandlers.onTouchMove}
+        onTouchEnd={swipeHandlers.onTouchEnd}
+      >
         {activeTab === 'coins' && (
           <>
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
-              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">하트 주기</p>
-              <div className="grid grid-cols-4 gap-2 mb-2">
-                {QUICK_AMOUNTS.map((amount) => (
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">하트 개수</p>
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {QUICK_AMOUNTS.map((q) => (
                   <button
-                    key={amount}
-                    onClick={() => handleGiveCoins(amount)}
-                    disabled={isLoading}
-                    className="py-3.5 bg-pink-50 text-pink-600 font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50"
+                    key={q}
+                    onClick={() => setAmount(String(q))}
+                    className={`py-3.5 font-bold rounded-xl transition-all active:scale-95 ${
+                      amount === String(q) ? 'bg-pink-500 text-white' : 'bg-pink-50 text-pink-600'
+                    }`}
                   >
-                    +{amount}
+                    {q}
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => handleGiveCoins(-1)}
-                disabled={isLoading}
-                className="w-full py-3 bg-red-50 text-red-500 font-semibold text-[14px] rounded-xl active:scale-[0.98] transition-all disabled:opacity-50"
-              >
-                −1 하트 차감
-              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="1"
+                placeholder="직접 입력"
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] text-center font-semibold focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
             </div>
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
-              <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-1">이유 (선택)</p>
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-1">
+                이유 <span className="text-pink-400">*필수</span>
+              </p>
               <input
                 type="text"
                 value={reason}
@@ -293,6 +319,23 @@ export default function ParentPage() {
                 placeholder="예: 숙제 다 했어요!"
                 className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleGiveCoins(true)}
+                disabled={isLoading}
+                className="py-4 bg-pink-500 text-white font-bold rounded-xl active:scale-[0.97] transition-all disabled:opacity-50"
+              >
+                💖 하트 주기
+              </button>
+              <button
+                onClick={() => handleGiveCoins(false)}
+                disabled={isLoading}
+                className="py-4 bg-red-50 text-red-500 font-bold rounded-xl active:scale-[0.97] transition-all disabled:opacity-50"
+              >
+                💔 하트 빼기
+              </button>
             </div>
           </>
         )}
