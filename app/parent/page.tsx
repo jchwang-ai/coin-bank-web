@@ -14,7 +14,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { id: 'coins', label: '💖 코인 관리' },
+  { id: 'coins', label: '💖 하트 관리' },
   { id: 'shop', label: '🛍️ 쿠폰 관리' },
   { id: 'settings', label: '⚙️ 설정' },
   { id: 'logs', label: '📜 접속 기록' },
@@ -70,11 +70,11 @@ export default function ParentPage() {
   const handleGiveCoins = async (amount: number) => {
     try {
       setIsLoading(true);
-      const desc = reason || (amount > 0 ? '잘했어요!' : '코인 차감');
+      const desc = reason || (amount > 0 ? '잘했어요!' : '하트 차감');
       await giveCoins(amount, desc);
       setBalance(balance + amount);
       setReason('');
-      setToast(amount > 0 ? `+${amount} 코인을 줬어요 💖` : `${amount} 코인 뺐어요`);
+      setToast(amount > 0 ? `+${amount} 하트를 줬어요 💖` : `${amount} 하트 뺐어요`);
 
       // Reload data
       const data = await getParentData();
@@ -175,10 +175,10 @@ export default function ParentPage() {
       </div>
 
       {/* Balance */}
-      <div className="bg-yellow-100 rounded-2xl p-6 mb-6 text-center">
-        <p className="text-yellow-800 font-bold text-sm">아이의 코인</p>
-        <p className="text-5xl font-bold text-yellow-600 mt-2">
-          {balance} <span className="text-3xl">🪙</span>
+      <div className="bg-pink-100 rounded-2xl p-6 mb-6 text-center">
+        <p className="text-pink-800 font-bold text-sm">아이의 하트</p>
+        <p className="text-5xl font-bold text-pink-600 mt-2">
+          {balance} <span className="text-3xl">💖</span>
         </p>
       </div>
 
@@ -202,14 +202,14 @@ export default function ParentPage() {
       {/* Coins Tab */}
       {activeTab === 'coins' && (
         <div className="space-y-4">
-          <p className="font-bold text-purple-700">💖 코인 주기 / 빼기</p>
+          <p className="font-bold text-purple-700">💖 하트 주기 / 빼기</p>
           <div className="grid grid-cols-4 gap-2">
             {QUICK_AMOUNTS.map((amount) => (
               <button
                 key={amount}
                 onClick={() => handleGiveCoins(amount)}
                 disabled={isLoading}
-                className="py-3 bg-yellow-100 text-yellow-700 font-bold rounded-lg hover:bg-yellow-200 active:scale-95 transition-all disabled:opacity-50"
+                className="py-3 bg-pink-100 text-pink-700 font-bold rounded-lg hover:bg-pink-200 active:scale-95 transition-all disabled:opacity-50"
               >
                 +{amount}
               </button>
@@ -219,7 +219,7 @@ export default function ParentPage() {
             <button
               onClick={() => handleGiveCoins(-1)}
               disabled={isLoading}
-              className="col-span-4 py-3 bg-pink-100 text-pink-700 font-bold rounded-lg hover:bg-pink-200 active:scale-95 transition-all disabled:opacity-50"
+              className="col-span-4 py-3 bg-red-100 text-red-700 font-bold rounded-lg hover:bg-red-200 active:scale-95 transition-all disabled:opacity-50"
             >
               -1
             </button>
@@ -243,7 +243,7 @@ export default function ParentPage() {
               <span className="text-3xl">{item.emoji}</span>
               <div className="flex-1">
                 <p className="font-bold text-gray-800">{item.name}</p>
-                <p className="text-sm text-gray-600">{item.price} 🪙</p>
+                <p className="text-sm text-gray-600">{item.price} 💖</p>
               </div>
               <button
                 onClick={() => setEditingItemId(item.id)}
@@ -275,7 +275,7 @@ export default function ParentPage() {
                 type="number"
                 value={newItemPrice}
                 onChange={(e) => setNewItemPrice(e.target.value)}
-                placeholder="코인"
+                placeholder="하트"
                 min="1"
                 className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
               />

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "🪙 나의 코인 은행",
-  description: "부모와 아이가 함께 쓰는 코인 관리 앱",
+  title: "💖 나의 하트 은행",
+  description: "부모와 아이가 함께 쓰는 하트 관리 앱",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 

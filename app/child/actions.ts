@@ -47,7 +47,7 @@ export async function buyCoupon(shopItemId: string) {
     const balance = (child.rows[0] as any).balance;
 
     if (balance < price) {
-      throw new Error('코인이 부족합니다');
+      throw new Error('하트가 부족합니다');
     }
 
     // Insert coupon

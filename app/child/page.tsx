@@ -71,11 +71,11 @@ export default function ChildPage() {
 
   const handleBuyCoupon = async (item: ShopItem) => {
     if (balance < item.price) {
-      setToast('코인이 부족해요');
+      setToast('하트가 부족해요');
       return;
     }
 
-    if (!window.confirm(`"${item.name}" 쿠폰을 ${item.price}코인으로 살까요?`)) {
+    if (!window.confirm(`"${item.name}" 쿠폰을 ${item.price}하트로 살까요?`)) {
       return;
     }
 
@@ -146,7 +146,7 @@ export default function ChildPage() {
     <div className="bg-white rounded-3xl shadow-xl p-6 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-pink-700">🧒 내 코인 지갑</h1>
+        <h1 className="text-2xl font-bold text-pink-700">🧒 내 하트 지갑</h1>
         <button
           onClick={handleLogout}
           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300"
@@ -156,10 +156,10 @@ export default function ChildPage() {
       </div>
 
       {/* Balance */}
-      <div className="bg-yellow-100 rounded-2xl p-6 mb-6 text-center">
-        <p className="text-yellow-800 font-bold text-sm">내가 모은 코인</p>
-        <p className="text-5xl font-bold text-yellow-600 mt-2">
-          {balance} <span className="text-3xl">🪙</span>
+      <div className="bg-pink-100 rounded-2xl p-6 mb-6 text-center">
+        <p className="text-pink-800 font-bold text-sm">내가 모은 하트</p>
+        <p className="text-5xl font-bold text-pink-600 mt-2">
+          {balance} <span className="text-3xl">💖</span>
         </p>
       </div>
 
@@ -194,7 +194,7 @@ export default function ChildPage() {
                 <span className="text-3xl">{item.emoji}</span>
                 <div className="flex-1">
                   <p className="font-bold text-gray-800">{item.name}</p>
-                  <p className="text-sm font-bold text-yellow-600">{item.price} 🪙</p>
+                  <p className="text-sm font-bold text-pink-600">{item.price} 💖</p>
                 </div>
                 <button
                   onClick={() => handleBuyCoupon(item)}
@@ -274,7 +274,7 @@ export default function ChildPage() {
                     tx.amount > 0 ? 'text-green-600' : 'text-red-600'
                   }`}
                 >
-                  {tx.amount > 0 ? '+' : ''}{tx.amount} 🪙
+                  {tx.amount > 0 ? '+' : ''}{tx.amount} 💖
                 </p>
               </div>
             ))

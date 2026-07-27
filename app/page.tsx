@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <div className="bg-white rounded-3xl shadow-xl p-8">
       <h1 className="text-4xl font-bold text-center text-purple-700 mb-2">
-        🪙 나의 코인 은행
+        💖 나의 하트 은행
       </h1>
       <p className="text-center text-gray-400 text-sm mb-8">
         누구로 들어갈까요?
