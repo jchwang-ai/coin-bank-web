@@ -11,6 +11,8 @@ export interface ChildAccount {
   id: string;
   pin: string;
   balance: number;
+  name: string;
+  photo_data: string | null;
   created_at: Date;
 }
 

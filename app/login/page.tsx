@@ -25,40 +25,45 @@ function LoginContent() {
         body: JSON.stringify({ role, pin }),
       });
 
-      const data = await response.json();
-
       if (response.ok) {
-        setToast(`어서와! 반가워 🥰`);
+        setToast('어서와! 반가워 🥰');
         setTimeout(() => {
           router.push(`/${role}`);
-        }, 500);
+        }, 400);
       } else {
-        setError('앗! 비밀번호가 달라요 🙈');
+        setIsLoading(false);
+        setError('비밀번호가 달라요 🙈');
       }
     } catch (err) {
+      setIsLoading(false);
       setError('오류가 발생했어요');
       console.error(err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const title = role === 'parent' ? '👨‍👩‍👧 부모님 비밀번호를 눌러주세요' : '🧒 내 비밀번호를 눌러주세요';
+  const title = role === 'parent' ? '부모님' : '아이';
+  const emoji = role === 'parent' ? '👨‍👩‍👧' : '👧';
 
   return (
-    <div className="bg-white rounded-3xl shadow-xl p-8">
-      <h1 className="text-xl font-bold text-center text-purple-700 mb-8">
-        {title}
-      </h1>
-
-      <PinPad onSubmit={handleSubmit} isLoading={isLoading} error={error} />
-
+    <div className="min-h-screen flex flex-col px-6 py-10 max-w-md mx-auto">
       <button
         onClick={() => router.push('/')}
-        className="mt-6 w-full py-3 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 active:scale-95 transition-all"
+        className="w-9 h-9 rounded-full bg-black/5 flex items-center justify-center text-[#1c1c1e] mb-8 active:bg-black/10 transition-colors"
+        aria-label="뒤로 가기"
       >
-        ← 뒤로 가기
+        ‹
       </button>
+
+      <div className="flex-1 flex flex-col items-center justify-center -mt-12">
+        <div className="w-16 h-16 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center text-3xl mb-4">
+          {emoji}
+        </div>
+        <h1 className="text-[20px] font-semibold text-[#1c1c1e] mb-10">
+          {title} 비밀번호를 입력하세요
+        </h1>
+
+        <PinPad onSubmit={handleSubmit} isLoading={isLoading} error={error} />
+      </div>
 
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
     </div>
@@ -67,7 +72,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="text-center">로딩 중...</div>}>
+    <Suspense fallback={<div className="text-center pt-20 text-[#8e8e93]">로딩 중...</div>}>
       <LoginContent />
     </Suspense>
   );

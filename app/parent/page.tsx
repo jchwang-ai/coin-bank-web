@@ -3,21 +3,27 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Toast from '@/components/Toast';
-import { getParentData, giveCoins, addShopItem, updateShopItem, deleteShopItem, updateChildPin, getAccessLogs } from './actions';
+import TabBar from '@/components/TabBar';
+import AvatarUpload from '@/components/AvatarUpload';
+import {
+  getParentData,
+  giveCoins,
+  addShopItem,
+  updateShopItem,
+  deleteShopItem,
+  updateChildPin,
+  updateChildName,
+  getAccessLogs,
+} from './actions';
 
 const QUICK_AMOUNTS = [1, 3, 5, 10];
 const RANDOM_EMOJIS = ['🎁', '⭐', '🌈', '🍭', '🧸', '🎪', '🎨', '🍩', '🦄', '💝'];
 
-interface Tab {
-  id: string;
-  label: string;
-}
-
-const TABS: Tab[] = [
-  { id: 'coins', label: '💖 하트 관리' },
-  { id: 'shop', label: '🛍️ 쿠폰 관리' },
-  { id: 'settings', label: '⚙️ 설정' },
-  { id: 'logs', label: '📜 접속 기록' },
+const TABS = [
+  { id: 'coins', label: '하트', icon: '💖' },
+  { id: 'shop', label: '쿠폰', icon: '🛍️' },
+  { id: 'settings', label: '설정', icon: '⚙️' },
+  { id: 'logs', label: '기록', icon: '📋' },
 ];
 
 interface ShopItem {
@@ -34,26 +40,45 @@ interface AccessLog {
   logged_out_at: string | null;
 }
 
+function deviceLabel(userAgent: string) {
+  if (!userAgent) return '알 수 없는 기기';
+  if (/iphone/i.test(userAgent)) return '📱 아이폰';
+  if (/ipad/i.test(userAgent)) return '📱 아이패드';
+  if (/android/i.test(userAgent)) return '📱 안드로이드';
+  if (/macintosh/i.test(userAgent)) return '💻 맥';
+  if (/windows/i.test(userAgent)) return '💻 윈도우';
+  return '🖥️ 기타 기기';
+}
+
 export default function ParentPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>('coins');
   const [balance, setBalance] = useState<number>(0);
+  const [childName, setChildName] = useState<string>('나');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [shops, setShops] = useState<ShopItem[]>([]);
+  const [logs, setLogs] = useState<AccessLog[]>([]);
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editName, setEditName] = useState<string>('');
+  const [editPrice, setEditPrice] = useState<string>('');
 
   const [reason, setReason] = useState<string>('');
   const [newItemName, setNewItemName] = useState<string>('');
   const [newItemPrice, setNewItemPrice] = useState<string>('');
   const [newChildPin, setNewChildPin] = useState<string>('');
+  const [newChildName, setNewChildName] = useState<string>('');
 
-  // Fetch data on mount
   useEffect(() => {
     const loadData = async () => {
       try {
         const data = await getParentData();
-        if (data.child) setBalance((data.child as any).balance);
+        if (data.child) {
+          setBalance((data.child as any).balance);
+          setChildName((data.child as any).name || '나');
+          setPhotoUrl((data.child as any).photo_data || null);
+        }
         if (data.shops) setShops(data.shops as ShopItem[]);
       } catch (error) {
         console.error('Error loading data:', error);
@@ -63,9 +88,17 @@ export default function ParentPage() {
     };
 
     loadData();
-    const interval = setInterval(loadData, 10000); // Refresh every 10 seconds
+    const interval = setInterval(loadData, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      getAccessLogs()
+        .then((rows) => setLogs(rows as AccessLog[]))
+        .catch((err) => console.error(err));
+    }
+  }, [activeTab]);
 
   const handleGiveCoins = async (amount: number) => {
     try {
@@ -76,7 +109,6 @@ export default function ParentPage() {
       setReason('');
       setToast(amount > 0 ? `+${amount} 하트를 줬어요 💖` : `${amount} 하트 뺐어요`);
 
-      // Reload data
       const data = await getParentData();
       if (data.child) setBalance((data.child as any).balance);
     } catch (error) {
@@ -92,17 +124,14 @@ export default function ParentPage() {
       setToast('이름과 가격을 입력해주세요');
       return;
     }
-
     try {
       setIsLoading(true);
       const emoji = RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)];
       await addShopItem(emoji, newItemName, parseInt(newItemPrice));
-
       setNewItemName('');
       setNewItemPrice('');
       setToast('쿠폰을 추가했어요! 🛍️');
 
-      // Reload shops
       const data = await getParentData();
       if (data.shops) setShops(data.shops as ShopItem[]);
     } catch (error) {
@@ -113,9 +142,34 @@ export default function ParentPage() {
     }
   };
 
+  const startEditItem = (item: ShopItem) => {
+    setEditingItemId(item.id);
+    setEditName(item.name);
+    setEditPrice(String(item.price));
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editName.trim() || !editPrice.trim() || parseInt(editPrice) < 1) {
+      setToast('이름과 가격을 확인해주세요');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const price = parseInt(editPrice);
+      await updateShopItem(id, editName.trim(), price);
+      setShops(shops.map((s) => (s.id === id ? { ...s, name: editName.trim(), price } : s)));
+      setEditingItemId(null);
+      setToast('쿠폰을 수정했어요! ✏️');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDeleteItem = async (id: string) => {
     if (!window.confirm('이 쿠폰을 삭제할까요?')) return;
-
     try {
       setIsLoading(true);
       await deleteShopItem(id);
@@ -130,16 +184,10 @@ export default function ParentPage() {
   };
 
   const handleUpdatePin = async () => {
-    if (!newChildPin.trim()) {
-      setToast('새 비밀번호를 입력해주세요');
-      return;
-    }
-
     if (newChildPin.length !== 4) {
       setToast('비밀번호는 4자리여야 해요');
       return;
     }
-
     try {
       setIsLoading(true);
       await updateChildPin(newChildPin);
@@ -153,174 +201,275 @@ export default function ParentPage() {
     }
   };
 
-  const handleLogout = () => {
-    router.push('/');
+  const handleUpdateName = async () => {
+    if (!newChildName.trim()) {
+      setToast('이름을 입력해주세요');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      await updateChildName(newChildName.trim());
+      setChildName(newChildName.trim());
+      setNewChildName('');
+      setToast('이름을 바꿨어요!');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const handleLogout = () => router.push('/');
+
   if (isLoading && balance === 0 && shops.length === 0) {
-    return <div className="text-center">로딩 중...</div>;
+    return <div className="text-center pt-24 text-[#8e8e93]">로딩 중...</div>;
   }
 
   return (
-    <div className="bg-white rounded-3xl shadow-xl p-6 max-w-2xl mx-auto">
+    <div className="min-h-screen pb-24">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-purple-700">👨‍👩‍👧 부모님 관리</h1>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300"
-        >
-          나가기
-        </button>
-      </div>
-
-      {/* Balance */}
-      <div className="bg-pink-100 rounded-2xl p-6 mb-6 text-center">
-        <p className="text-pink-800 font-bold text-sm">아이의 하트</p>
-        <p className="text-5xl font-bold text-pink-600 mt-2">
-          {balance} <span className="text-3xl">💖</span>
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
-        {TABS.map((tab) => (
+      <div className="px-5 pt-6 pb-4 safe-top">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <AvatarUpload photoUrl={photoUrl} size={56} fallbackEmoji="👧" />
+            <div>
+              <p className="text-[13px] text-[#8e8e93]">부모님 화면</p>
+              <p className="text-[19px] font-bold text-[#1c1c1e]">{childName}</p>
+            </div>
+          </div>
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-all ${
-              activeTab === tab.id
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
+            onClick={handleLogout}
+            className="text-[13px] font-medium text-[#8e8e93] px-3 py-1.5 rounded-full bg-black/5 active:bg-black/10 transition-colors"
           >
-            {tab.label}
+            나가기
           </button>
-        ))}
+        </div>
+
+        {/* Balance Hero Card */}
+        <div className="rounded-3xl p-6 bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-lg shadow-purple-500/25 relative overflow-hidden">
+          <div className="absolute -right-6 -top-6 text-8xl opacity-20">💖</div>
+          <p className="text-white/80 text-[13px] font-medium relative">{childName}의 하트</p>
+          <p className="text-white text-[44px] font-bold leading-tight mt-1 relative">
+            {balance}
+            <span className="text-2xl ml-2">💖</span>
+          </p>
+        </div>
       </div>
 
-      {/* Coins Tab */}
-      {activeTab === 'coins' && (
-        <div className="space-y-4">
-          <p className="font-bold text-purple-700">💖 하트 주기 / 빼기</p>
-          <div className="grid grid-cols-4 gap-2">
-            {QUICK_AMOUNTS.map((amount) => (
-              <button
-                key={amount}
-                onClick={() => handleGiveCoins(amount)}
-                disabled={isLoading}
-                className="py-3 bg-pink-100 text-pink-700 font-bold rounded-lg hover:bg-pink-200 active:scale-95 transition-all disabled:opacity-50"
-              >
-                +{amount}
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            <button
-              onClick={() => handleGiveCoins(-1)}
-              disabled={isLoading}
-              className="col-span-4 py-3 bg-red-100 text-red-700 font-bold rounded-lg hover:bg-red-200 active:scale-95 transition-all disabled:opacity-50"
-            >
-              -1
-            </button>
-          </div>
-
-          <input
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="이유 (예: 숙제 다 했어요!)"
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
-          />
-        </div>
-      )}
-
-      {/* Shop Tab */}
-      {activeTab === 'shop' && (
-        <div className="space-y-4">
-          {shops.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 bg-gray-50 p-4 rounded-lg">
-              <span className="text-3xl">{item.emoji}</span>
-              <div className="flex-1">
-                <p className="font-bold text-gray-800">{item.name}</p>
-                <p className="text-sm text-gray-600">{item.price} 💖</p>
+      {/* Content */}
+      <div className="px-5 space-y-5">
+        {activeTab === 'coins' && (
+          <>
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">하트 주기</p>
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                {QUICK_AMOUNTS.map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => handleGiveCoins(amount)}
+                    disabled={isLoading}
+                    className="py-3.5 bg-pink-50 text-pink-600 font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    +{amount}
+                  </button>
+                ))}
               </div>
               <button
-                onClick={() => setEditingItemId(item.id)}
-                className="px-3 py-2 bg-blue-100 text-blue-700 text-xs font-bold rounded hover:bg-blue-200"
-              >
-                수정
-              </button>
-              <button
-                onClick={() => handleDeleteItem(item.id)}
+                onClick={() => handleGiveCoins(-1)}
                 disabled={isLoading}
-                className="px-3 py-2 bg-red-100 text-red-700 text-xs font-bold rounded hover:bg-red-200 disabled:opacity-50"
+                className="w-full py-3 bg-red-50 text-red-500 font-semibold text-[14px] rounded-xl active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                삭제
+                −1 하트 차감
               </button>
             </div>
-          ))}
 
-          <div className="border-t-2 border-gray-200 pt-4">
-            <p className="font-bold text-purple-700 mb-3">새 쿠폰 추가</p>
-            <input
-              type="text"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              placeholder="쿠폰 이름"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg mb-3 focus:outline-none focus:border-purple-500"
-            />
-            <div className="flex gap-2 mb-3">
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-1">이유 (선택)</p>
+              <input
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="예: 숙제 다 했어요!"
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+            </div>
+          </>
+        )}
+
+        {activeTab === 'shop' && (
+          <>
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+              {shops.length === 0 ? (
+                <p className="text-center text-[#8e8e93] py-10 text-[15px]">쿠폰이 없어요</p>
+              ) : (
+                shops.map((item, idx) => {
+                  const isEditing = editingItemId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`px-4 py-3.5 ${idx !== shops.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                    >
+                      {isEditing ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          />
+                          <input
+                            type="number"
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            min="1"
+                            className="w-16 px-2 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(item.id)}
+                            disabled={isLoading}
+                            className="px-3 py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => setEditingItemId(null)}
+                            className="px-3 py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl shrink-0">
+                            {item.emoji}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{item.name}</p>
+                            <p className="text-[13px] text-[#8e8e93]">{item.price} 💖</p>
+                          </div>
+                          <button
+                            onClick={() => startEditItem(item)}
+                            className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-[13px] shrink-0 active:scale-90 transition-all"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            disabled={isLoading}
+                            className="w-8 h-8 rounded-full bg-red-50 text-red-500 text-[15px] shrink-0 active:scale-90 transition-all disabled:opacity-50"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 쿠폰 추가</p>
+              <input
+                type="text"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                placeholder="쿠폰 이름"
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
               <input
                 type="number"
                 value={newItemPrice}
                 onChange={(e) => setNewItemPrice(e.target.value)}
-                placeholder="하트"
+                placeholder="하트 가격"
                 min="1"
-                className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-3 focus:outline-none focus:ring-2 focus:ring-purple-300"
               />
+              <button
+                onClick={handleAddItem}
+                disabled={isLoading}
+                className="w-full py-3.5 bg-[#1c1c1e] text-white font-semibold rounded-xl active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                쿠폰 추가하기
+              </button>
             </div>
-            <button
-              onClick={handleAddItem}
-              disabled={isLoading}
-              className="w-full py-3 bg-orange-500 text-white font-bold rounded-lg hover:bg-orange-600 active:scale-95 transition-all disabled:opacity-50"
-            >
-              쿠폰 추가하기
-            </button>
+          </>
+        )}
+
+        {activeTab === 'settings' && (
+          <>
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">자녀 이름</p>
+              <input
+                type="text"
+                value={newChildName}
+                onChange={(e) => setNewChildName(e.target.value)}
+                placeholder={childName}
+                maxLength={10}
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-3 focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+              <button
+                onClick={handleUpdateName}
+                disabled={isLoading}
+                className="w-full py-3.5 bg-purple-600 text-white font-semibold rounded-xl active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                이름 변경
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">자녀 비밀번호 변경</p>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={newChildPin}
+                onChange={(e) => setNewChildPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="새 4자리 비밀번호"
+                maxLength={4}
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-3 focus:outline-none focus:ring-2 focus:ring-purple-300 tracking-widest"
+              />
+              <button
+                onClick={handleUpdatePin}
+                disabled={isLoading}
+                className="w-full py-3.5 bg-purple-600 text-white font-semibold rounded-xl active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                비밀번호 변경
+              </button>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'logs' && (
+          <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+            {logs.length === 0 ? (
+              <p className="text-center text-[#8e8e93] py-10 text-[15px]">접속 기록이 없어요</p>
+            ) : (
+              logs.map((log, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-center justify-between px-4 py-3.5 ${idx !== logs.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg shrink-0">{log.role === 'parent' ? '👨‍👩‍👧' : '👧'}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-[14px] text-[#1c1c1e]">
+                        {log.role === 'parent' ? '부모님' : '아이'} 접속
+                      </p>
+                      <p className="text-[12px] text-[#8e8e93] truncate">{deviceLabel(log.user_agent)}</p>
+                    </div>
+                  </div>
+                  <p className="text-[12px] text-[#8e8e93] shrink-0">
+                    {new Date(log.logged_in_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Settings Tab */}
-      {activeTab === 'settings' && (
-        <div className="space-y-4">
-          <p className="font-bold text-purple-700">자녀 비밀번호 변경</p>
-          <input
-            type="text"
-            value={newChildPin}
-            onChange={(e) => setNewChildPin(e.target.value)}
-            placeholder="새 4자리 비밀번호"
-            maxLength={4}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
-          />
-          <button
-            onClick={handleUpdatePin}
-            disabled={isLoading}
-            className="w-full py-3 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50"
-          >
-            비밀번호 변경
-          </button>
-        </div>
-      )}
-
-      {/* Logs Tab */}
-      {activeTab === 'logs' && (
-        <div className="space-y-3">
-          <p className="font-bold text-purple-700 mb-4">📜 최근 접속 기록</p>
-          <p className="text-sm text-gray-600">로그인 기록이 여기에 표시됩니다</p>
-        </div>
-      )}
-
+      <TabBar items={TABS} activeId={activeTab} onChange={setActiveTab} accentColor="#9333ea" />
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
     </div>
   );

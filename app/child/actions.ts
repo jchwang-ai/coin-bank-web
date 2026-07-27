@@ -5,7 +5,7 @@ import { sql } from '@vercel/postgres';
 export async function getChildData() {
   try {
     const [child, shops, coupons, transactions] = await Promise.all([
-      sql`SELECT id, balance FROM child_account LIMIT 1`,
+      sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price FROM shop_items ORDER BY created_at`,
       sql`
         SELECT c.id, c.used, c.purchased_at, c.used_at,
@@ -30,6 +30,34 @@ export async function getChildData() {
     };
   } catch (error) {
     console.error('Error fetching child data:', error);
+    throw error;
+  }
+}
+
+export async function updateChildPhoto(photoData: string) {
+  try {
+    await sql`
+      UPDATE child_account
+      SET photo_data = ${photoData}
+      WHERE id = (SELECT id FROM child_account LIMIT 1)
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating child photo:', error);
+    throw error;
+  }
+}
+
+export async function updateChildName(name: string) {
+  try {
+    await sql`
+      UPDATE child_account
+      SET name = ${name}
+      WHERE id = (SELECT id FROM child_account LIMIT 1)
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating child name:', error);
     throw error;
   }
 }

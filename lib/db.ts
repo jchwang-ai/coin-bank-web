@@ -22,9 +22,15 @@ export async function initializeDatabase() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         pin VARCHAR(255) NOT NULL,
         balance INTEGER DEFAULT 0,
+        name VARCHAR(50) DEFAULT '나',
+        photo_data TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
+
+    // Migration: add columns if table already existed without them
+    await sql`ALTER TABLE child_account ADD COLUMN IF NOT EXISTS name VARCHAR(50) DEFAULT '나'`;
+    await sql`ALTER TABLE child_account ADD COLUMN IF NOT EXISTS photo_data TEXT`;
 
     // shop_items table
     await sql`

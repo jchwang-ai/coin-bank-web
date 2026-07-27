@@ -5,7 +5,7 @@ import { sql } from '@vercel/postgres';
 export async function getParentData() {
   try {
     const [child, shops, transactions] = await Promise.all([
-      sql`SELECT id, balance FROM child_account LIMIT 1`,
+      sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price FROM shop_items ORDER BY created_at`,
       sql`SELECT type, amount, description, created_at FROM transactions ORDER BY created_at DESC LIMIT 50`,
     ]);
@@ -95,6 +95,20 @@ export async function updateChildPin(newPin: string) {
     return { success: true };
   } catch (error) {
     console.error('Error updating child PIN:', error);
+    throw error;
+  }
+}
+
+export async function updateChildName(name: string) {
+  try {
+    await sql`
+      UPDATE child_account
+      SET name = ${name}
+      WHERE id = (SELECT id FROM child_account LIMIT 1)
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating child name:', error);
     throw error;
   }
 }
