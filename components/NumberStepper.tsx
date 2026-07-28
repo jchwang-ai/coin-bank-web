@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import NumberKeypadSheet from './NumberKeypadSheet';
 
 interface NumberStepperProps {
   value: number;
@@ -54,6 +55,8 @@ export default function NumberStepper({
   const dec = () => startHold(-step);
   const inc = () => startHold(step);
 
+  const [keypadOpen, setKeypadOpen] = useState(false);
+
   return (
     <div className="flex items-center gap-2">
       <button
@@ -68,12 +71,14 @@ export default function NumberStepper({
       >
         −
       </button>
-      <div
-        className={`flex-1 text-center text-[17px] font-bold bg-black/[0.03] rounded-xl py-2.5 ${valueColorClassName}`}
+      <button
+        type="button"
+        onClick={() => setKeypadOpen(true)}
+        className={`flex-1 text-center text-[17px] font-bold bg-black/[0.03] rounded-xl py-2.5 active:bg-black/[0.06] transition-colors ${valueColorClassName}`}
       >
         {signPrefix}
         {value} {suffix}
-      </div>
+      </button>
       <button
         type="button"
         onPointerDown={inc}
@@ -86,6 +91,20 @@ export default function NumberStepper({
       >
         +
       </button>
+
+      {keypadOpen && (
+        <NumberKeypadSheet
+          initialValue={value}
+          min={min}
+          max={max}
+          suffix={suffix}
+          onConfirm={(v) => {
+            onChange(v);
+            setKeypadOpen(false);
+          }}
+          onClose={() => setKeypadOpen(false)}
+        />
+      )}
     </div>
   );
 }

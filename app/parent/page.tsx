@@ -8,6 +8,7 @@ import AvatarUpload from '@/components/AvatarUpload';
 import SwipeableViews from '@/components/SwipeableViews';
 import EmojiPicker from '@/components/EmojiPicker';
 import NumberStepper from '@/components/NumberStepper';
+import ReorderableList from '@/components/ReorderableList';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSoftDown } from '@/lib/sound';
 import {
@@ -25,6 +26,8 @@ import {
   rejectMissionRequest,
   approveShopItemRequest,
   rejectShopItemRequest,
+  reorderShopItems,
+  reorderMissions,
   getAccessLogs,
   getActivityLogs,
 } from './actions';
@@ -140,6 +143,7 @@ export default function ParentPage() {
   const [newItemEmoji, setNewItemEmoji] = useState<string>('🎁');
   const [newChildPin, setNewChildPin] = useState<string>('');
   const [newChildName, setNewChildName] = useState<string>('');
+  const [logDayIndex, setLogDayIndex] = useState<number>(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -174,8 +178,26 @@ export default function ParentPage() {
       getActivityLogs()
         .then((rows) => setActivityLogs(rows as ActivityLog[]))
         .catch((err) => console.error(err));
+      setLogDayIndex(0);
     }
   }, [activeTab]);
+
+  const logDateKey = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+
+  const logDays = Array.from(new Set(logs.map((l) => logDateKey(l.logged_in_at))));
+  const selectedDayKey = logDays[logDayIndex];
+  const logsForSelectedDay = logs.filter((l) => logDateKey(l.logged_in_at) === selectedDayKey);
+  const selectedDayLabel = selectedDayKey
+    ? new Date(logs.find((l) => logDateKey(l.logged_in_at) === selectedDayKey)!.logged_in_at).toLocaleDateString('ko-KR', {
+        month: 'long',
+        day: 'numeric',
+        weekday: 'short',
+      })
+    : '';
+  const isToday = selectedDayKey === logDateKey(new Date().toISOString());
 
   const handleGiveCoins = async (isGive: boolean) => {
     const qty = amount;
@@ -272,6 +294,15 @@ export default function ParentPage() {
     }
   };
 
+  const handleReorderShop = async (newOrder: ShopItem[]) => {
+    setShops(newOrder);
+    try {
+      await reorderShopItems(newOrder.map((s) => s.id));
+    } catch (error) {
+      console.error('Error reordering shop items:', error);
+    }
+  };
+
   const handleAddMission = async () => {
     if (!newMissionName.trim()) {
       setToast('미션 이름을 입력해주세요');
@@ -333,6 +364,15 @@ export default function ParentPage() {
       console.error(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleReorderMissions = async (newOrder: Mission[]) => {
+    setMissions(newOrder);
+    try {
+      await reorderMissions(newOrder.map((m) => m.id));
+    } catch (error) {
+      console.error('Error reordering missions:', error);
     }
   };
 
@@ -636,11 +676,15 @@ export default function ParentPage() {
               {shops.length === 0 ? (
                 <p className="text-center text-[#8e8e93] py-10 text-[15px]">쿠폰이 없어요</p>
               ) : (
-                shops.map((item, idx) => {
+                <ReorderableList
+                  items={shops}
+                  onReorder={handleReorderShop}
+                  disabled={editingItemId !== null}
+                  renderItem={(item) => {
+                  const idx = shops.findIndex((s) => s.id === item.id);
                   const isEditing = editingItemId === item.id;
                   return (
                     <div
-                      key={item.id}
                       className={`px-4 py-3.5 ${idx !== shops.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
                     >
                       {isEditing ? (
@@ -697,9 +741,12 @@ export default function ParentPage() {
                       )}
                     </div>
                   );
-                })
+                  }}
+                />
               )}
             </div>
+
+            <p className="text-[12px] text-[#8e8e93] text-center px-4">⠿ 을 눌러서 위아래로 끌면 순서를 바꿀 수 있어요</p>
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 쿠폰 추가</p>
@@ -789,11 +836,15 @@ export default function ParentPage() {
               {missions.length === 0 ? (
                 <p className="text-center text-[#8e8e93] py-10 text-[15px]">미션이 없어요</p>
               ) : (
-                missions.map((mission, idx) => {
+                <ReorderableList
+                  items={missions}
+                  onReorder={handleReorderMissions}
+                  disabled={editingMissionId !== null}
+                  renderItem={(mission) => {
+                  const idx = missions.findIndex((m) => m.id === mission.id);
                   const isEditing = editingMissionId === mission.id;
                   return (
                     <div
-                      key={mission.id}
                       className={`px-4 py-3.5 ${idx !== missions.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
                     >
                       {isEditing ? (
@@ -850,9 +901,12 @@ export default function ParentPage() {
                       )}
                     </div>
                   );
-                })
+                  }}
+                />
               )}
             </div>
+
+            <p className="text-[12px] text-[#8e8e93] text-center px-4">⠿ 을 눌러서 위아래로 끌면 순서를 바꿀 수 있어요</p>
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 미션 추가</p>
@@ -959,14 +1013,39 @@ export default function ParentPage() {
             </div>
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
-              <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">🔑 로그인 기록</p>
-              {logs.length === 0 ? (
+              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                <p className="text-[13px] font-semibold text-[#8e8e93]">🔑 로그인 기록</p>
+                {logDays.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setLogDayIndex((i) => Math.min(logDays.length - 1, i + 1))}
+                      disabled={logDayIndex >= logDays.length - 1}
+                      className="w-7 h-7 rounded-full bg-black/5 text-[#1c1c1e] text-[13px] flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      aria-label="이전 날짜"
+                    >
+                      ←
+                    </button>
+                    <span className="text-[12px] font-semibold text-[#1c1c1e] px-1 min-w-[92px] text-center">
+                      {isToday ? '오늘' : selectedDayLabel}
+                    </span>
+                    <button
+                      onClick={() => setLogDayIndex((i) => Math.max(0, i - 1))}
+                      disabled={isToday}
+                      className="w-7 h-7 rounded-full bg-black/5 text-[#1c1c1e] text-[13px] flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      aria-label="다음 날짜"
+                    >
+                      →
+                    </button>
+                  </div>
+                )}
+              </div>
+              {logsForSelectedDay.length === 0 ? (
                 <p className="text-center text-[#8e8e93] py-10 text-[15px]">접속 기록이 없어요</p>
               ) : (
-                logs.map((log, idx) => (
+                logsForSelectedDay.map((log, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between px-4 py-3.5 ${idx !== logs.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                    className={`flex items-center justify-between px-4 py-3.5 ${idx !== logsForSelectedDay.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-lg shrink-0">{log.role === 'parent' ? '👨‍👩‍👧' : '👧'}</span>

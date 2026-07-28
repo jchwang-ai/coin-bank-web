@@ -168,6 +168,36 @@ export async function updateMission(id: string, name: string, reward: number, em
   }
 }
 
+export async function reorderShopItems(orderedIds: string[]) {
+  try {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        sql`UPDATE shop_items SET sort_order = ${index} WHERE id = ${id}`
+      )
+    );
+    await logActivity('parent', '상점 순서 변경');
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering shop items:', error);
+    throw error;
+  }
+}
+
+export async function reorderMissions(orderedIds: string[]) {
+  try {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        sql`UPDATE missions SET sort_order = ${index} WHERE id = ${id}`
+      )
+    );
+    await logActivity('parent', '미션 순서 변경');
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering missions:', error);
+    throw error;
+  }
+}
+
 export async function deleteMission(id: string) {
   try {
     const mission = await sql`SELECT emoji, name FROM missions WHERE id = ${id}`;
@@ -312,7 +342,7 @@ export async function getAccessLogs() {
       SELECT role, user_agent, logged_in_at, logged_out_at
       FROM access_logs
       ORDER BY logged_in_at DESC
-      LIMIT 50
+      LIMIT 200
     `;
 
     return result.rows;
