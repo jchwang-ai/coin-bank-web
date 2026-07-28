@@ -8,6 +8,8 @@ import AvatarUpload from '@/components/AvatarUpload';
 import SwipeableViews from '@/components/SwipeableViews';
 import EmojiBurst from '@/components/EmojiBurst';
 import MissionRequestSheet from '@/components/MissionRequestSheet';
+import ShopItemProposalSheet from '@/components/ShopItemProposalSheet';
+import ReorderableList from '@/components/ReorderableList';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSend } from '@/lib/sound';
 import {
@@ -17,6 +19,8 @@ import {
   updateChildPhoto,
   requestMission,
   requestCustomMission,
+  proposeShopItem,
+  reorderShopItems,
 } from './actions';
 
 const TABS = [
@@ -32,6 +36,7 @@ interface ShopItem {
   emoji: string;
   name: string;
   price: number;
+  sort_order?: number | null;
 }
 
 interface Coupon {
@@ -72,6 +77,16 @@ const STATUS_LABEL: Record<MyRequest['status'], string> = {
   rejected: '❌ 거절됐어요',
 };
 
+interface MyShopRequest {
+  id: string;
+  emoji: string;
+  name: string;
+  requested_price: number;
+  final_price: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  requested_at: string;
+}
+
 function ChildContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,10 +103,12 @@ function ChildContent() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [pendingMissionIds, setPendingMissionIds] = useState<string[]>([]);
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
+  const [myShopRequests, setMyShopRequests] = useState<MyShopRequest[]>([]);
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMission, setSheetMission] = useState<Mission | undefined>(undefined);
+  const [shopProposalOpen, setShopProposalOpen] = useState(false);
 
   const [burstEmojis, setBurstEmojis] = useState<string[]>(['💖', '✨', '🎉']);
   const [burstTrigger, setBurstTrigger] = useState(0);
@@ -122,6 +139,7 @@ function ChildContent() {
         if (data.missions) setMissions(data.missions as Mission[]);
         if (data.pendingMissionIds) setPendingMissionIds(data.pendingMissionIds as string[]);
         if (data.myRequests) setMyRequests(data.myRequests as MyRequest[]);
+        if (data.myShopRequests) setMyShopRequests(data.myShopRequests as MyShopRequest[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -222,6 +240,27 @@ function ChildContent() {
     if (refreshed.myRequests) setMyRequests(refreshed.myRequests as MyRequest[]);
   };
 
+  const handleReorderShop = async (newOrder: ShopItem[]) => {
+    setShops(newOrder);
+    try {
+      await reorderShopItems(newOrder.map((s) => s.id));
+    } catch (error) {
+      console.error('Error reordering shop items:', error);
+    }
+  };
+
+  const handleProposeShopItem = async (data: { emoji: string; name: string; price: number }) => {
+    await proposeShopItem(data.emoji, data.name, data.price);
+    setShopProposalOpen(false);
+    setBurstEmojis(['✨', '💌', '🛍️']);
+    setBurstTrigger((t) => t + 1);
+    playSend();
+    setToast('제안을 보냈어요! 부모님을 기다려주세요 💌');
+
+    const refreshed = await getChildData();
+    if (refreshed.myShopRequests) setMyShopRequests(refreshed.myShopRequests as MyShopRequest[]);
+  };
+
   const handleExit = () => {
     router.push(isPreview ? '/parent' : '/');
   };
@@ -284,35 +323,73 @@ function ChildContent() {
         onIndexChange={(i) => setActiveTab(TAB_IDS[i])}
       >
         {[
-          <div key="shop" className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
-            {shops.length === 0 ? (
-              <p className="text-center text-[#8e8e93] py-10 text-[15px]">상점이 비어있어요</p>
-            ) : (
-              shops.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center gap-3 px-4 py-3.5 ${idx !== shops.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
-                >
-                  <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl shrink-0">
-                    {item.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{item.name}</p>
-                    <p className="text-[13px] font-semibold text-pink-500">{item.price} 💖</p>
-                  </div>
-                  <button
-                    onClick={() => handleBuyCoupon(item)}
-                    disabled={isLoading || balance < item.price}
-                    className={`px-4 py-2 rounded-full font-semibold text-[13px] shrink-0 transition-all active:scale-95 ${
-                      balance >= item.price
-                        ? 'bg-[#1c1c1e] text-white'
-                        : 'bg-black/5 text-[#c7c7cc]'
-                    }`}
+          <div key="shop" className="space-y-4">
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+              {shops.length === 0 ? (
+                <p className="text-center text-[#8e8e93] py-10 text-[15px]">상점이 비어있어요</p>
+              ) : (
+                <ReorderableList
+                  items={shops}
+                  onReorder={handleReorderShop}
+                  renderItem={(item) => (
+                    <div className="flex items-center gap-3 px-4 py-3.5 border-b border-black/[0.06]">
+                      <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl shrink-0">
+                        {item.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{item.name}</p>
+                        <p className="text-[13px] font-semibold text-pink-500">{item.price} 💖</p>
+                      </div>
+                      <button
+                        onClick={() => handleBuyCoupon(item)}
+                        disabled={isLoading || balance < item.price}
+                        className={`px-4 py-2 rounded-full font-semibold text-[13px] shrink-0 transition-all active:scale-95 ${
+                          balance >= item.price
+                            ? 'bg-[#1c1c1e] text-white'
+                            : 'bg-black/5 text-[#c7c7cc]'
+                        }`}
+                      >
+                        사기
+                      </button>
+                    </div>
+                  )}
+                />
+              )}
+            </div>
+
+            <p className="text-[12px] text-[#8e8e93] text-center px-4">⠿ 을 눌러서 위아래로 끌면 순서를 바꿀 수 있어요</p>
+
+            <button
+              onClick={() => setShopProposalOpen(true)}
+              className="w-full py-3.5 rounded-2xl border-2 border-dashed border-purple-200 text-purple-500 font-semibold text-[14px] active:bg-purple-50 transition-colors"
+            >
+              🛍️ 새 아이템 제안하기
+            </button>
+
+            {myShopRequests.length > 0 && (
+              <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+                <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">내가 제안한 아이템</p>
+                {myShopRequests.map((req, idx) => (
+                  <div
+                    key={req.id}
+                    className={`flex items-center gap-3 px-4 py-3 ${idx !== myShopRequests.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
                   >
-                    사기
-                  </button>
-                </div>
-              ))
+                    <span className="text-lg shrink-0">{req.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
+                      <p className="text-[12px] text-[#8e8e93]">
+                        {new Date(req.requested_at).toLocaleDateString('ko-KR')}
+                        {req.status === 'approved' && req.final_price !== null && (
+                          <span className="ml-1.5 font-semibold text-green-600">{req.final_price} 💖</span>
+                        )}
+                      </p>
+                    </div>
+                    <span className="text-[12px] font-medium text-[#8e8e93] shrink-0">
+                      {req.status === 'pending' ? '⏳ 기다리는 중' : req.status === 'approved' ? '✅ 승인됐어요' : '❌ 거절됐어요'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>,
 
@@ -449,6 +526,13 @@ function ChildContent() {
           mission={sheetMission}
           onClose={() => setSheetOpen(false)}
           onSubmit={handleSheetSubmit}
+        />
+      )}
+
+      {shopProposalOpen && (
+        <ShopItemProposalSheet
+          onClose={() => setShopProposalOpen(false)}
+          onSubmit={handleProposeShopItem}
         />
       )}
     </div>

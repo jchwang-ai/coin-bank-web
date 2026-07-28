@@ -39,7 +39,33 @@ export async function initializeDatabase() {
         emoji VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
         price INTEGER NOT NULL,
+        sort_order INTEGER,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await sql`ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS sort_order INTEGER`;
+    await sql`
+      UPDATE shop_items
+      SET sort_order = sub.rn
+      FROM (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) AS rn
+        FROM shop_items
+        WHERE sort_order IS NULL
+      ) sub
+      WHERE shop_items.id = sub.id
+    `;
+
+    // shop_item_requests table (child-proposed shop items awaiting parent approval)
+    await sql`
+      CREATE TABLE IF NOT EXISTS shop_item_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        emoji VARCHAR(50) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        requested_price INTEGER NOT NULL,
+        final_price INTEGER,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP WITH TIME ZONE
       );
     `;
 

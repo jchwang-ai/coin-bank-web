@@ -6,6 +6,7 @@ import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
 import SwipeableViews from '@/components/SwipeableViews';
+import EmojiPicker from '@/components/EmojiPicker';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSoftDown } from '@/lib/sound';
 import {
@@ -21,12 +22,12 @@ import {
   deleteMission,
   approveMissionRequest,
   rejectMissionRequest,
+  approveShopItemRequest,
+  rejectShopItemRequest,
   getAccessLogs,
 } from './actions';
 
 const QUICK_AMOUNTS = [1, 3, 5, 10];
-const RANDOM_EMOJIS = ['🎁', '⭐', '🌈', '🍭', '🧸', '🎪', '🎨', '🍩', '🦄', '💝'];
-const MISSION_EMOJIS = ['🎯', '🌟', '🧸', '🎨', '🧩', '🏃', '🎵', '🌱'];
 
 const TABS = [
   { id: 'coins', label: '하트', icon: '💖' },
@@ -42,6 +43,7 @@ interface ShopItem {
   emoji: string;
   name: string;
   price: number;
+  sort_order?: number | null;
 }
 
 interface Mission {
@@ -59,6 +61,14 @@ interface PendingRequest {
   name: string;
   reward: number | null;
   photo_data: string | null;
+  requested_at: string;
+}
+
+interface PendingShopRequest {
+  id: string;
+  emoji: string;
+  name: string;
+  requested_price: number;
   requested_at: string;
 }
 
@@ -90,6 +100,7 @@ export default function ParentPage() {
   const [shops, setShops] = useState<ShopItem[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [pendingShopRequests, setPendingShopRequests] = useState<PendingShopRequest[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -98,18 +109,23 @@ export default function ParentPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editName, setEditName] = useState<string>('');
   const [editPrice, setEditPrice] = useState<string>('');
+  const [editItemEmoji, setEditItemEmoji] = useState<string>('🎁');
 
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [editMissionName, setEditMissionName] = useState<string>('');
   const [editMissionReward, setEditMissionReward] = useState<string>('');
+  const [editMissionEmoji, setEditMissionEmoji] = useState<string>('🎯');
   const [newMissionName, setNewMissionName] = useState<string>('');
   const [newMissionReward, setNewMissionReward] = useState<string>('');
+  const [newMissionEmoji, setNewMissionEmoji] = useState<string>('🎯');
   const [approveRewardInputs, setApproveRewardInputs] = useState<Record<string, string>>({});
+  const [shopApprovePriceInputs, setShopApprovePriceInputs] = useState<Record<string, string>>({});
 
   const [reason, setReason] = useState<string>('');
   const [amount, setAmount] = useState<string>('1');
   const [newItemName, setNewItemName] = useState<string>('');
   const [newItemPrice, setNewItemPrice] = useState<string>('');
+  const [newItemEmoji, setNewItemEmoji] = useState<string>('🎁');
   const [newChildPin, setNewChildPin] = useState<string>('');
   const [newChildName, setNewChildName] = useState<string>('');
 
@@ -125,6 +141,7 @@ export default function ParentPage() {
         if (data.shops) setShops(data.shops as ShopItem[]);
         if (data.missions) setMissions(data.missions as Mission[]);
         if (data.pendingRequests) setPendingRequests(data.pendingRequests as PendingRequest[]);
+        if (data.pendingShopRequests) setPendingShopRequests(data.pendingShopRequests as PendingShopRequest[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -183,10 +200,10 @@ export default function ParentPage() {
     }
     try {
       setIsLoading(true);
-      const emoji = RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)];
-      await addShopItem(emoji, newItemName, parseInt(newItemPrice));
+      await addShopItem(newItemEmoji, newItemName, parseInt(newItemPrice));
       setNewItemName('');
       setNewItemPrice('');
+      setNewItemEmoji('🎁');
       setToast('쿠폰을 추가했어요! 🛍️');
 
       const data = await getParentData();
@@ -203,6 +220,7 @@ export default function ParentPage() {
     setEditingItemId(item.id);
     setEditName(item.name);
     setEditPrice(String(item.price));
+    setEditItemEmoji(item.emoji);
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -213,8 +231,8 @@ export default function ParentPage() {
     try {
       setIsLoading(true);
       const price = parseInt(editPrice);
-      await updateShopItem(id, editName.trim(), price);
-      setShops(shops.map((s) => (s.id === id ? { ...s, name: editName.trim(), price } : s)));
+      await updateShopItem(id, editName.trim(), price, editItemEmoji);
+      setShops(shops.map((s) => (s.id === id ? { ...s, name: editName.trim(), price, emoji: editItemEmoji } : s)));
       setEditingItemId(null);
       setToast('쿠폰을 수정했어요! ✏️');
     } catch (error) {
@@ -247,10 +265,10 @@ export default function ParentPage() {
     }
     try {
       setIsLoading(true);
-      const emoji = MISSION_EMOJIS[Math.floor(Math.random() * MISSION_EMOJIS.length)];
-      await addMission(emoji, newMissionName.trim(), parseInt(newMissionReward));
+      await addMission(newMissionEmoji, newMissionName.trim(), parseInt(newMissionReward));
       setNewMissionName('');
       setNewMissionReward('');
+      setNewMissionEmoji('🎯');
       setToast('미션을 추가했어요! 🎯');
 
       const data = await getParentData();
@@ -267,6 +285,7 @@ export default function ParentPage() {
     setEditingMissionId(mission.id);
     setEditMissionName(mission.name);
     setEditMissionReward(String(mission.reward));
+    setEditMissionEmoji(mission.emoji);
   };
 
   const handleSaveEditMission = async (id: string) => {
@@ -277,8 +296,8 @@ export default function ParentPage() {
     try {
       setIsLoading(true);
       const reward = parseInt(editMissionReward);
-      await updateMission(id, editMissionName.trim(), reward);
-      setMissions(missions.map((m) => (m.id === id ? { ...m, name: editMissionName.trim(), reward } : m)));
+      await updateMission(id, editMissionName.trim(), reward, editMissionEmoji);
+      setMissions(missions.map((m) => (m.id === id ? { ...m, name: editMissionName.trim(), reward, emoji: editMissionEmoji } : m)));
       setEditingMissionId(null);
       setToast('미션을 수정했어요! ✏️');
     } catch (error) {
@@ -350,6 +369,47 @@ export default function ParentPage() {
     }
   };
 
+  const handleApproveShopRequest = async (request: PendingShopRequest) => {
+    const input = shopApprovePriceInputs[request.id];
+    const finalPrice = input !== undefined ? parseInt(input, 10) : request.requested_price;
+    if (!finalPrice || finalPrice < 1) {
+      setToast('하트 개수를 입력해주세요');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await approveShopItemRequest(request.id, finalPrice);
+      setPendingShopRequests(pendingShopRequests.filter((r) => r.id !== request.id));
+      playChime();
+      setToast('상점에 새 아이템을 추가했어요! 🛍️');
+
+      const data = await getParentData();
+      if (data.shops) setShops(data.shops as ShopItem[]);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRejectShopRequest = async (requestId: string) => {
+    if (!window.confirm('이 제안을 거절할까요?')) return;
+    try {
+      setIsLoading(true);
+      await rejectShopItemRequest(requestId);
+      setPendingShopRequests(pendingShopRequests.filter((r) => r.id !== requestId));
+      playSoftDown();
+      setToast('제안을 거절했어요');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleUpdatePin = async () => {
     if (newChildPin.length !== 4) {
       setToast('비밀번호는 4자리여야 해요');
@@ -390,9 +450,11 @@ export default function ParentPage() {
   const handleLogout = () => router.push('/');
   const handlePreviewChild = () => router.push('/child?preview=parent');
 
-  const tabsWithBadge = TABS.map((t) =>
-    t.id === 'missions' && pendingRequests.length > 0 ? { ...t, badge: pendingRequests.length } : t
-  );
+  const tabsWithBadge = TABS.map((t) => {
+    if (t.id === 'missions' && pendingRequests.length > 0) return { ...t, badge: pendingRequests.length };
+    if (t.id === 'shop' && pendingShopRequests.length > 0) return { ...t, badge: pendingShopRequests.length };
+    return t;
+  });
   const activeIndex = Math.max(TAB_IDS.indexOf(activeTab), 0);
 
   if (isLoading && balance === 0 && shops.length === 0) {
@@ -495,6 +557,58 @@ export default function ParentPage() {
           </div>,
 
           <div key="shop" className="space-y-5">
+            {pendingShopRequests.length > 0 && (
+              <div className="rounded-2xl bg-white shadow-sm border border-pink-200 overflow-hidden">
+                <p className="text-[13px] font-semibold text-pink-500 px-4 pt-4 pb-2">
+                  🔔 아이가 아이템을 제안했어요 ({pendingShopRequests.length})
+                </p>
+                {pendingShopRequests.map((req, idx) => (
+                  <div
+                    key={req.id}
+                    className={`px-4 py-3.5 ${idx !== pendingShopRequests.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl shrink-0">
+                        {req.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[15px] text-[#1c1c1e]">{req.name}</p>
+                        <p className="text-[12px] text-[#8e8e93]">
+                          {new Date(req.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          <span className="ml-1.5 font-semibold text-pink-500">· 제안: {req.requested_price} 💖</span>
+                        </p>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={shopApprovePriceInputs[req.id] ?? String(req.requested_price)}
+                          onChange={(e) => setShopApprovePriceInputs({ ...shopApprovePriceInputs, [req.id]: e.target.value })}
+                          placeholder="최종 하트 개수"
+                          min="1"
+                          className="w-full mt-2 px-3 py-2 bg-black/[0.03] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        />
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                          <button
+                            onClick={() => handleApproveShopRequest(req)}
+                            disabled={isLoading}
+                            className="py-2.5 bg-pink-500 text-white font-semibold text-[13px] rounded-lg active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            승인 💖
+                          </button>
+                          <button
+                            onClick={() => handleRejectShopRequest(req.id)}
+                            disabled={isLoading}
+                            className="py-2.5 bg-black/5 text-[#8e8e93] font-semibold text-[13px] rounded-lg active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            거절
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
               {shops.length === 0 ? (
                 <p className="text-center text-[#8e8e93] py-10 text-[15px]">쿠폰이 없어요</p>
@@ -508,6 +622,7 @@ export default function ParentPage() {
                     >
                       {isEditing ? (
                         <div className="flex items-center gap-2">
+                          <EmojiPicker value={editItemEmoji} onChange={setEditItemEmoji} />
                           <input
                             type="text"
                             value={editName}
@@ -567,13 +682,16 @@ export default function ParentPage() {
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 쿠폰 추가</p>
-              <input
-                type="text"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                placeholder="쿠폰 이름"
-                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
+              <div className="flex items-center gap-2 mb-2">
+                <EmojiPicker value={newItemEmoji} onChange={setNewItemEmoji} />
+                <input
+                  type="text"
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  placeholder="쿠폰 이름"
+                  className="flex-1 min-w-0 px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                />
+              </div>
               <input
                 type="number"
                 value={newItemPrice}
@@ -666,6 +784,7 @@ export default function ParentPage() {
                     >
                       {isEditing ? (
                         <div className="flex items-center gap-2">
+                          <EmojiPicker value={editMissionEmoji} onChange={setEditMissionEmoji} />
                           <input
                             type="text"
                             value={editMissionName}
@@ -725,13 +844,16 @@ export default function ParentPage() {
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 미션 추가</p>
-              <input
-                type="text"
-                value={newMissionName}
-                onChange={(e) => setNewMissionName(e.target.value)}
-                placeholder="미션 이름 (예: 책 읽기)"
-                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
+              <div className="flex items-center gap-2 mb-2">
+                <EmojiPicker value={newMissionEmoji} onChange={setNewMissionEmoji} />
+                <input
+                  type="text"
+                  value={newMissionName}
+                  onChange={(e) => setNewMissionName(e.target.value)}
+                  placeholder="미션 이름 (예: 책 읽기)"
+                  className="flex-1 min-w-0 px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                />
+              </div>
               <input
                 type="number"
                 value={newMissionReward}

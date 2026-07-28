@@ -4,14 +4,20 @@ import { sql } from '@vercel/postgres';
 
 export async function getParentData() {
   try {
-    const [child, shops, transactions, missions, pendingRequests] = await Promise.all([
+    const [child, shops, transactions, missions, pendingRequests, pendingShopRequests] = await Promise.all([
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
-      sql`SELECT id, emoji, name, price FROM shop_items ORDER BY created_at`,
+      sql`SELECT id, emoji, name, price, sort_order FROM shop_items ORDER BY sort_order NULLS LAST, created_at`,
       sql`SELECT type, amount, description, created_at FROM transactions ORDER BY created_at DESC LIMIT 50`,
       sql`SELECT id, emoji, name, reward FROM missions ORDER BY created_at`,
       sql`
         SELECT id, mission_id, is_custom, emoji, name, reward, photo_data, requested_at
         FROM mission_requests
+        WHERE status = 'pending'
+        ORDER BY requested_at ASC
+      `,
+      sql`
+        SELECT id, emoji, name, requested_price, requested_at
+        FROM shop_item_requests
         WHERE status = 'pending'
         ORDER BY requested_at ASC
       `,
@@ -23,6 +29,7 @@ export async function getParentData() {
       transactions: transactions.rows,
       missions: missions.rows,
       pendingRequests: pendingRequests.rows,
+      pendingShopRequests: pendingShopRequests.rows,
     };
   } catch (error) {
     console.error('Error fetching parent data:', error);
@@ -67,11 +74,11 @@ export async function addShopItem(emoji: string, name: string, price: number) {
   }
 }
 
-export async function updateShopItem(id: string, name: string, price: number) {
+export async function updateShopItem(id: string, name: string, price: number, emoji: string) {
   try {
     await sql`
       UPDATE shop_items
-      SET name = ${name}, price = ${price}
+      SET name = ${name}, price = ${price}, emoji = ${emoji}
       WHERE id = ${id}
     `;
 
@@ -136,11 +143,11 @@ export async function addMission(emoji: string, name: string, reward: number) {
   }
 }
 
-export async function updateMission(id: string, name: string, reward: number) {
+export async function updateMission(id: string, name: string, reward: number, emoji: string) {
   try {
     await sql`
       UPDATE missions
-      SET name = ${name}, reward = ${reward}
+      SET name = ${name}, reward = ${reward}, emoji = ${emoji}
       WHERE id = ${id}
     `;
     return { success: true };
@@ -212,6 +219,58 @@ export async function rejectMissionRequest(requestId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error rejecting mission request:', error);
+    throw error;
+  }
+}
+
+export async function approveShopItemRequest(requestId: string, finalPrice: number) {
+  try {
+    if (!finalPrice || finalPrice < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
+
+    const request = await sql`
+      SELECT emoji, name, status FROM shop_item_requests WHERE id = ${requestId}
+    `;
+    if (!request.rows.length) {
+      throw new Error('요청을 찾을 수 없습니다');
+    }
+    const { emoji, name, status } = request.rows[0] as any;
+    if (status !== 'pending') {
+      throw new Error('이미 처리된 요청입니다');
+    }
+
+    const maxOrder = await sql`SELECT COALESCE(MAX(sort_order), -1) as max_order FROM shop_items`;
+    const nextOrder = (maxOrder.rows[0] as any).max_order + 1;
+
+    await sql`
+      INSERT INTO shop_items (emoji, name, price, sort_order)
+      VALUES (${emoji}, ${name}, ${finalPrice}, ${nextOrder})
+    `;
+
+    await sql`
+      UPDATE shop_item_requests
+      SET status = 'approved', final_price = ${finalPrice}, resolved_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId}
+    `;
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error approving shop item request:', error);
+    throw error;
+  }
+}
+
+export async function rejectShopItemRequest(requestId: string) {
+  try {
+    await sql`
+      UPDATE shop_item_requests
+      SET status = 'rejected', resolved_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId} AND status = 'pending'
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error rejecting shop item request:', error);
     throw error;
   }
 }

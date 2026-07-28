@@ -21,7 +21,21 @@ export interface ShopItem {
   emoji: string;
   name: string;
   price: number;
+  sort_order: number | null;
   created_at: Date;
+}
+
+export type ShopItemRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ShopItemRequest {
+  id: string;
+  emoji: string;
+  name: string;
+  requested_price: number;
+  final_price: number | null;
+  status: ShopItemRequestStatus;
+  requested_at: Date;
+  resolved_at: Date | null;
 }
 
 export interface Coupon {

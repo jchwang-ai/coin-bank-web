@@ -4,9 +4,9 @@ import { sql } from '@vercel/postgres';
 
 export async function getChildData() {
   try {
-    const [child, shops, coupons, transactions, missions, pendingRequests, myRequests] = await Promise.all([
+    const [child, shops, coupons, transactions, missions, pendingRequests, myRequests, myShopRequests] = await Promise.all([
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
-      sql`SELECT id, emoji, name, price FROM shop_items ORDER BY created_at`,
+      sql`SELECT id, emoji, name, price, sort_order FROM shop_items ORDER BY sort_order NULLS LAST, created_at`,
       sql`
         SELECT c.id, c.used, c.purchased_at, c.used_at,
                s.id as shop_item_id, s.emoji, s.name
@@ -28,6 +28,12 @@ export async function getChildData() {
         ORDER BY requested_at DESC
         LIMIT 20
       `,
+      sql`
+        SELECT id, emoji, name, requested_price, final_price, status, requested_at
+        FROM shop_item_requests
+        ORDER BY requested_at DESC
+        LIMIT 20
+      `,
     ]);
 
     return {
@@ -38,6 +44,7 @@ export async function getChildData() {
       missions: missions.rows,
       pendingMissionIds: pendingRequests.rows.map((r: any) => r.mission_id),
       myRequests: myRequests.rows,
+      myShopRequests: myShopRequests.rows,
     };
   } catch (error) {
     console.error('Error fetching child data:', error);
@@ -87,6 +94,41 @@ export async function requestCustomMission(description: string, photoData?: stri
     return { success: true };
   } catch (error) {
     console.error('Error requesting custom mission:', error);
+    throw error;
+  }
+}
+
+export async function proposeShopItem(emoji: string, name: string, requestedPrice: number) {
+  try {
+    if (!name.trim()) {
+      throw new Error('이름을 적어주세요');
+    }
+    if (!requestedPrice || requestedPrice < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
+
+    await sql`
+      INSERT INTO shop_item_requests (emoji, name, requested_price)
+      VALUES (${emoji}, ${name.trim()}, ${requestedPrice})
+    `;
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error proposing shop item:', error);
+    throw error;
+  }
+}
+
+export async function reorderShopItems(orderedIds: string[]) {
+  try {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        sql`UPDATE shop_items SET sort_order = ${index} WHERE id = ${id}`
+      )
+    );
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering shop items:', error);
     throw error;
   }
 }
