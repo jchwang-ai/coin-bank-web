@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import EmojiPicker from './EmojiPicker';
+import NumberStepper from './NumberStepper';
 
 interface ShopItemProposalSheetProps {
   onClose: () => void;
@@ -11,7 +12,7 @@ interface ShopItemProposalSheetProps {
 export default function ShopItemProposalSheet({ onClose, onSubmit }: ShopItemProposalSheetProps) {
   const [emoji, setEmoji] = useState('🎁');
   const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
+  const [price, setPrice] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,15 +21,14 @@ export default function ShopItemProposalSheet({ onClose, onSubmit }: ShopItemPro
       setError('갖고 싶은 걸 적어주세요');
       return;
     }
-    const qty = parseInt(price, 10);
-    if (!qty || qty < 1) {
+    if (!price || price < 1) {
       setError('몇 하트인지 적어주세요');
       return;
     }
     setError('');
     try {
       setIsSubmitting(true);
-      await onSubmit({ emoji, name: name.trim(), price: qty });
+      await onSubmit({ emoji, name: name.trim(), price });
     } catch (err) {
       setError(err instanceof Error ? err.message : '오류가 발생했어요');
       setIsSubmitting(false);
@@ -55,15 +55,10 @@ export default function ShopItemProposalSheet({ onClose, onSubmit }: ShopItemPro
           />
         </div>
 
-        <input
-          type="number"
-          inputMode="numeric"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="몇 하트면 될까요?"
-          min="1"
-          className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-1 focus:outline-none focus:ring-2 focus:ring-purple-300"
-        />
+        <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-1">몇 하트면 될까요?</p>
+        <div className="mb-1">
+          <NumberStepper value={price} onChange={setPrice} />
+        </div>
         <p className="text-[12px] text-[#8e8e93] px-1 mb-3">* 부모님이 확인하고 하트 개수를 조정할 수 있어요</p>
 
         {error && <p className="text-red-500 text-[13px] font-medium mb-2">{error}</p>}

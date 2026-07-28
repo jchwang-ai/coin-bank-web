@@ -120,7 +120,7 @@ export default function ParentPage() {
 
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editName, setEditName] = useState<string>('');
-  const [editPrice, setEditPrice] = useState<string>('');
+  const [editPrice, setEditPrice] = useState<number>(1);
   const [editItemEmoji, setEditItemEmoji] = useState<string>('🎁');
 
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
@@ -130,13 +130,13 @@ export default function ParentPage() {
   const [newMissionName, setNewMissionName] = useState<string>('');
   const [newMissionReward, setNewMissionReward] = useState<number>(1);
   const [newMissionEmoji, setNewMissionEmoji] = useState<string>('🎯');
-  const [approveRewardInputs, setApproveRewardInputs] = useState<Record<string, string>>({});
-  const [shopApprovePriceInputs, setShopApprovePriceInputs] = useState<Record<string, string>>({});
+  const [approveRewardInputs, setApproveRewardInputs] = useState<Record<string, number>>({});
+  const [shopApprovePriceInputs, setShopApprovePriceInputs] = useState<Record<string, number>>({});
 
   const [reason, setReason] = useState<string>('');
-  const [amount, setAmount] = useState<string>('1');
+  const [amount, setAmount] = useState<number>(1);
   const [newItemName, setNewItemName] = useState<string>('');
-  const [newItemPrice, setNewItemPrice] = useState<string>('');
+  const [newItemPrice, setNewItemPrice] = useState<number>(1);
   const [newItemEmoji, setNewItemEmoji] = useState<string>('🎁');
   const [newChildPin, setNewChildPin] = useState<string>('');
   const [newChildName, setNewChildName] = useState<string>('');
@@ -178,7 +178,7 @@ export default function ParentPage() {
   }, [activeTab]);
 
   const handleGiveCoins = async (isGive: boolean) => {
-    const qty = parseInt(amount, 10);
+    const qty = amount;
     if (!qty || qty < 1) {
       setToast('하트 개수를 입력해주세요');
       return;
@@ -195,7 +195,7 @@ export default function ParentPage() {
       setBalance(balance + delta);
       setToast(isGive ? `+${qty} 하트를 줬어요 💖` : `−${qty} 하트를 뺐어요`);
       setReason('');
-      setAmount('1');
+      setAmount(1);
       if (isGive) playChime();
 
       const data = await getParentData();
@@ -209,15 +209,15 @@ export default function ParentPage() {
   };
 
   const handleAddItem = async () => {
-    if (!newItemName.trim() || !newItemPrice.trim()) {
-      setToast('이름과 가격을 입력해주세요');
+    if (!newItemName.trim()) {
+      setToast('이름을 입력해주세요');
       return;
     }
     try {
       setIsLoading(true);
-      await addShopItem(newItemEmoji, newItemName, parseInt(newItemPrice));
+      await addShopItem(newItemEmoji, newItemName, newItemPrice);
       setNewItemName('');
-      setNewItemPrice('');
+      setNewItemPrice(1);
       setNewItemEmoji('🎁');
       setToast('쿠폰을 추가했어요! 🛍️');
 
@@ -234,20 +234,19 @@ export default function ParentPage() {
   const startEditItem = (item: ShopItem) => {
     setEditingItemId(item.id);
     setEditName(item.name);
-    setEditPrice(String(item.price));
+    setEditPrice(item.price);
     setEditItemEmoji(item.emoji);
   };
 
   const handleSaveEdit = async (id: string) => {
-    if (!editName.trim() || !editPrice.trim() || parseInt(editPrice) < 1) {
-      setToast('이름과 가격을 확인해주세요');
+    if (!editName.trim()) {
+      setToast('이름을 확인해주세요');
       return;
     }
     try {
       setIsLoading(true);
-      const price = parseInt(editPrice);
-      await updateShopItem(id, editName.trim(), price, editItemEmoji);
-      setShops(shops.map((s) => (s.id === id ? { ...s, name: editName.trim(), price, emoji: editItemEmoji } : s)));
+      await updateShopItem(id, editName.trim(), editPrice, editItemEmoji);
+      setShops(shops.map((s) => (s.id === id ? { ...s, name: editName.trim(), price: editPrice, emoji: editItemEmoji } : s)));
       setEditingItemId(null);
       setToast('쿠폰을 수정했어요! ✏️');
     } catch (error) {
@@ -340,8 +339,7 @@ export default function ParentPage() {
   const handleApproveRequest = async (request: PendingRequest) => {
     let overrideReward: number | undefined;
     if (request.reward === null) {
-      const input = approveRewardInputs[request.id];
-      const parsed = parseInt(input || '', 10);
+      const parsed = approveRewardInputs[request.id] ?? 1;
       if (!parsed || parsed < 1) {
         setToast('하트 개수를 입력해주세요');
         return;
@@ -384,8 +382,7 @@ export default function ParentPage() {
   };
 
   const handleApproveShopRequest = async (request: PendingShopRequest) => {
-    const input = shopApprovePriceInputs[request.id];
-    const finalPrice = input !== undefined ? parseInt(input, 10) : request.requested_price;
+    const finalPrice = shopApprovePriceInputs[request.id] ?? request.requested_price;
     if (!finalPrice || finalPrice < 1) {
       setToast('하트 개수를 입력해주세요');
       return;
@@ -538,9 +535,9 @@ export default function ParentPage() {
                 {QUICK_AMOUNTS.map((q) => (
                   <button
                     key={q}
-                    onClick={() => setAmount(String(q))}
+                    onClick={() => setAmount(q)}
                     className={`py-3.5 font-bold rounded-xl transition-all active:scale-95 ${
-                      amount === String(q)
+                      amount === q
                         ? direction === 'give'
                           ? 'bg-pink-500 text-white'
                           : 'bg-red-500 text-white'
@@ -553,24 +550,12 @@ export default function ParentPage() {
                   </button>
                 ))}
               </div>
-              <div className="relative">
-                <span
-                  className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-[15px] ${
-                    direction === 'give' ? 'text-pink-500' : 'text-red-500'
-                  }`}
-                >
-                  {direction === 'give' ? '+' : '−'}
-                </span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  min="1"
-                  placeholder="직접 입력"
-                  className="w-full pl-8 pr-4 py-3 bg-black/[0.03] rounded-xl text-[15px] text-center font-semibold focus:outline-none focus:ring-2 focus:ring-purple-300"
-                />
-              </div>
+              <NumberStepper
+                value={amount}
+                onChange={setAmount}
+                signPrefix={direction === 'give' ? '+' : '−'}
+                valueColorClassName={direction === 'give' ? 'text-pink-500' : 'text-red-500'}
+              />
             </div>
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
@@ -593,7 +578,7 @@ export default function ParentPage() {
                 direction === 'give' ? 'bg-pink-500' : 'bg-red-500'
               }`}
             >
-              {direction === 'give' ? `💖 +${amount || 0} 하트 주기` : `💔 −${amount || 0} 하트 빼기`}
+              {direction === 'give' ? `💖 +${amount} 하트 주기` : `💔 −${amount} 하트 빼기`}
             </button>
           </div>,
 
@@ -618,15 +603,12 @@ export default function ParentPage() {
                           {new Date(req.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           <span className="ml-1.5 font-semibold text-pink-500">· 제안: {req.requested_price} 💖</span>
                         </p>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          value={shopApprovePriceInputs[req.id] ?? String(req.requested_price)}
-                          onChange={(e) => setShopApprovePriceInputs({ ...shopApprovePriceInputs, [req.id]: e.target.value })}
-                          placeholder="최종 하트 개수"
-                          min="1"
-                          className="w-full mt-2 px-3 py-2 bg-black/[0.03] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
-                        />
+                        <div className="mt-2">
+                          <NumberStepper
+                            value={shopApprovePriceInputs[req.id] ?? req.requested_price}
+                            onChange={(v) => setShopApprovePriceInputs({ ...shopApprovePriceInputs, [req.id]: v })}
+                          />
+                        </div>
                         <div className="grid grid-cols-2 gap-2 mt-3">
                           <button
                             onClick={() => handleApproveShopRequest(req)}
@@ -662,34 +644,32 @@ export default function ParentPage() {
                       className={`px-4 py-3.5 ${idx !== shops.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
                     >
                       {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <EmojiPicker value={editItemEmoji} onChange={setEditItemEmoji} />
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          />
-                          <input
-                            type="number"
-                            value={editPrice}
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            min="1"
-                            className="w-16 px-2 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          />
-                          <button
-                            onClick={() => handleSaveEdit(item.id)}
-                            disabled={isLoading}
-                            className="px-3 py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
-                          >
-                            저장
-                          </button>
-                          <button
-                            onClick={() => setEditingItemId(null)}
-                            className="px-3 py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
-                          >
-                            취소
-                          </button>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <EmojiPicker value={editItemEmoji} onChange={setEditItemEmoji} />
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                            />
+                          </div>
+                          <NumberStepper value={editPrice} onChange={setEditPrice} />
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleSaveEdit(item.id)}
+                              disabled={isLoading}
+                              className="py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold active:scale-95 transition-all"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingItemId(null)}
+                              className="py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold active:scale-95 transition-all"
+                            >
+                              취소
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-3">
@@ -723,7 +703,7 @@ export default function ParentPage() {
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 쿠폰 추가</p>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <EmojiPicker value={newItemEmoji} onChange={setNewItemEmoji} />
                 <input
                   type="text"
@@ -733,14 +713,10 @@ export default function ParentPage() {
                   className="flex-1 min-w-0 px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300"
                 />
               </div>
-              <input
-                type="number"
-                value={newItemPrice}
-                onChange={(e) => setNewItemPrice(e.target.value)}
-                placeholder="하트 가격"
-                min="1"
-                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-3 focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-1">하트 가격</p>
+              <div className="mb-3">
+                <NumberStepper value={newItemPrice} onChange={setNewItemPrice} />
+              </div>
               <button
                 onClick={handleAddItem}
                 disabled={isLoading}
@@ -779,15 +755,12 @@ export default function ParentPage() {
                           </button>
                         )}
                         {req.reward === null && (
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={approveRewardInputs[req.id] || ''}
-                            onChange={(e) => setApproveRewardInputs({ ...approveRewardInputs, [req.id]: e.target.value })}
-                            placeholder="줄 하트 개수 입력"
-                            min="1"
-                            className="w-full mt-2 px-3 py-2 bg-black/[0.03] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          />
+                          <div className="mt-2">
+                            <NumberStepper
+                              value={approveRewardInputs[req.id] ?? 1}
+                              onChange={(v) => setApproveRewardInputs({ ...approveRewardInputs, [req.id]: v })}
+                            />
+                          </div>
                         )}
                         <div className="grid grid-cols-2 gap-2 mt-3">
                           <button
