@@ -4,16 +4,25 @@ import { sql } from '@vercel/postgres';
 
 export async function getParentData() {
   try {
-    const [child, shops, transactions] = await Promise.all([
+    const [child, shops, transactions, missions, pendingRequests] = await Promise.all([
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price FROM shop_items ORDER BY created_at`,
       sql`SELECT type, amount, description, created_at FROM transactions ORDER BY created_at DESC LIMIT 50`,
+      sql`SELECT id, emoji, name, reward FROM missions ORDER BY created_at`,
+      sql`
+        SELECT id, mission_id, is_custom, emoji, name, reward, photo_data, requested_at
+        FROM mission_requests
+        WHERE status = 'pending'
+        ORDER BY requested_at ASC
+      `,
     ]);
 
     return {
       child: child.rows[0],
       shops: shops.rows,
       transactions: transactions.rows,
+      missions: missions.rows,
+      pendingRequests: pendingRequests.rows,
     };
   } catch (error) {
     console.error('Error fetching parent data:', error);
@@ -109,6 +118,100 @@ export async function updateChildName(name: string) {
     return { success: true };
   } catch (error) {
     console.error('Error updating child name:', error);
+    throw error;
+  }
+}
+
+export async function addMission(emoji: string, name: string, reward: number) {
+  try {
+    const result = await sql`
+      INSERT INTO missions (emoji, name, reward)
+      VALUES (${emoji}, ${name}, ${reward})
+      RETURNING id, emoji, name, reward
+    `;
+    return { success: true, mission: result.rows[0] };
+  } catch (error) {
+    console.error('Error adding mission:', error);
+    throw error;
+  }
+}
+
+export async function updateMission(id: string, name: string, reward: number) {
+  try {
+    await sql`
+      UPDATE missions
+      SET name = ${name}, reward = ${reward}
+      WHERE id = ${id}
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating mission:', error);
+    throw error;
+  }
+}
+
+export async function deleteMission(id: string) {
+  try {
+    await sql`DELETE FROM missions WHERE id = ${id}`;
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting mission:', error);
+    throw error;
+  }
+}
+
+export async function approveMissionRequest(requestId: string, overrideReward?: number) {
+  try {
+    const request = await sql`
+      SELECT reward, name, status FROM mission_requests WHERE id = ${requestId}
+    `;
+    if (!request.rows.length) {
+      throw new Error('요청을 찾을 수 없습니다');
+    }
+    const { reward, name, status } = request.rows[0] as any;
+    if (status !== 'pending') {
+      throw new Error('이미 처리된 요청입니다');
+    }
+
+    const finalReward = reward ?? overrideReward;
+    if (!finalReward || finalReward < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
+
+    await sql`
+      UPDATE child_account
+      SET balance = balance + ${finalReward}
+      WHERE id = (SELECT id FROM child_account LIMIT 1)
+    `;
+
+    await sql`
+      INSERT INTO transactions (type, amount, description)
+      VALUES ('give', ${finalReward}, ${`미션 완료: ${name}`})
+    `;
+
+    await sql`
+      UPDATE mission_requests
+      SET status = 'approved', reward = ${finalReward}, resolved_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId}
+    `;
+
+    return { success: true, reward: finalReward };
+  } catch (error) {
+    console.error('Error approving mission request:', error);
+    throw error;
+  }
+}
+
+export async function rejectMissionRequest(requestId: string) {
+  try {
+    await sql`
+      UPDATE mission_requests
+      SET status = 'rejected', resolved_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId} AND status = 'pending'
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error rejecting mission request:', error);
     throw error;
   }
 }

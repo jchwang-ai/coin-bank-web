@@ -1,15 +1,27 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
 import SwipeableViews from '@/components/SwipeableViews';
-import { getChildData, buyCoupon, useCoupon, updateChildPhoto } from './actions';
+import EmojiBurst from '@/components/EmojiBurst';
+import MissionRequestSheet from '@/components/MissionRequestSheet';
+import { useUnlockAudio } from '@/hooks/useUnlockAudio';
+import { playChime, playSend } from '@/lib/sound';
+import {
+  getChildData,
+  buyCoupon,
+  useCoupon,
+  updateChildPhoto,
+  requestMission,
+  requestCustomMission,
+} from './actions';
 
 const TABS = [
   { id: 'shop', label: '상점', icon: '🛍️' },
+  { id: 'missions', label: '미션', icon: '🎯' },
   { id: 'coupons', label: '내 쿠폰', icon: '🎟️' },
   { id: 'history', label: '기록', icon: '📜' },
 ];
@@ -37,10 +49,34 @@ interface Transaction {
   created_at: string;
 }
 
+interface Mission {
+  id: string;
+  emoji: string;
+  name: string;
+  reward: number;
+}
+
+interface MyRequest {
+  id: string;
+  emoji: string;
+  name: string;
+  reward: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  is_custom: boolean;
+  requested_at: string;
+}
+
+const STATUS_LABEL: Record<MyRequest['status'], string> = {
+  pending: '⏳ 기다리는 중',
+  approved: '✅ 승인됐어요',
+  rejected: '❌ 거절됐어요',
+};
+
 function ChildContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isPreview = searchParams.get('preview') === 'parent';
+  useUnlockAudio();
 
   const [activeTab, setActiveTab] = useState<string>('shop');
   const [balance, setBalance] = useState<number>(0);
@@ -49,21 +85,43 @@ function ChildContent() {
   const [shops, setShops] = useState<ShopItem[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [pendingMissionIds, setPendingMissionIds] = useState<string[]>([]);
+  const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetMission, setSheetMission] = useState<Mission | undefined>(undefined);
+
+  const [burstEmojis, setBurstEmojis] = useState<string[]>(['💖', '✨', '🎉']);
+  const [burstTrigger, setBurstTrigger] = useState(0);
+
+  const prevBalance = useRef<number | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         const data = await getChildData();
         if (data.child) {
-          setBalance((data.child as any).balance);
+          const newBalance = (data.child as any).balance;
+          if (prevBalance.current !== null && newBalance > prevBalance.current) {
+            const gained = newBalance - prevBalance.current;
+            setBurstEmojis(['💖', '✨', '🎉']);
+            setBurstTrigger((t) => t + 1);
+            playChime();
+            setToast(`+${gained} 하트를 받았어요! 🎉`);
+          }
+          prevBalance.current = newBalance;
+          setBalance(newBalance);
           setChildName((data.child as any).name || '나');
           setPhotoUrl((data.child as any).photo_data || null);
         }
         if (data.shops) setShops(data.shops as ShopItem[]);
         if (data.coupons) setCoupons(data.coupons as Coupon[]);
         if (data.transactions) setTransactions(data.transactions as Transaction[]);
+        if (data.missions) setMissions(data.missions as Mission[]);
+        if (data.pendingMissionIds) setPendingMissionIds(data.pendingMissionIds as string[]);
+        if (data.myRequests) setMyRequests(data.myRequests as MyRequest[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -97,6 +155,7 @@ function ChildContent() {
     try {
       setIsLoading(true);
       await buyCoupon(item.id);
+      prevBalance.current = balance - item.price;
       setBalance(balance - item.price);
       setCoupons([
         {
@@ -137,6 +196,30 @@ function ChildContent() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const openMissionSheet = (mission?: Mission) => {
+    setSheetMission(mission);
+    setSheetOpen(true);
+  };
+
+  const handleSheetSubmit = async (data: { missionId?: string; description?: string; photoData: string | null }) => {
+    if (data.missionId) {
+      await requestMission(data.missionId, data.photoData);
+    } else {
+      await requestCustomMission(data.description || '', data.photoData);
+    }
+
+    setSheetOpen(false);
+    setBurstEmojis(['✨', '💌', '🚀']);
+    setBurstTrigger((t) => t + 1);
+    playSend();
+    setToast('요청을 보냈어요! 부모님을 기다려주세요 💌');
+
+    const refreshed = await getChildData();
+    if (refreshed.missions) setMissions(refreshed.missions as Mission[]);
+    if (refreshed.pendingMissionIds) setPendingMissionIds(refreshed.pendingMissionIds as string[]);
+    if (refreshed.myRequests) setMyRequests(refreshed.myRequests as MyRequest[]);
   };
 
   const handleExit = () => {
@@ -182,13 +265,16 @@ function ChildContent() {
         </div>
 
         {/* Balance Hero Card */}
-        <div className="rounded-3xl p-6 bg-gradient-to-br from-pink-400 via-rose-400 to-fuchsia-500 shadow-lg shadow-pink-500/25 relative overflow-hidden">
-          <div className="absolute -right-6 -top-6 text-8xl opacity-20">💖</div>
-          <p className="text-white/80 text-[13px] font-medium relative">내가 모은 하트</p>
-          <p className="text-white text-[44px] font-bold leading-tight mt-1 relative">
-            {balance}
-            <span className="text-2xl ml-2">💖</span>
-          </p>
+        <div className="relative">
+          <div className="rounded-3xl p-6 bg-gradient-to-br from-pink-400 via-rose-400 to-fuchsia-500 shadow-lg shadow-pink-500/25 relative overflow-hidden">
+            <div className="absolute -right-6 -top-6 text-8xl opacity-20">💖</div>
+            <p className="text-white/80 text-[13px] font-medium relative">내가 모은 하트</p>
+            <p className="text-white text-[44px] font-bold leading-tight mt-1 relative">
+              {balance}
+              <span className="text-2xl ml-2">💖</span>
+            </p>
+          </div>
+          <EmojiBurst trigger={burstTrigger} emojis={burstEmojis} />
         </div>
       </div>
 
@@ -227,6 +313,72 @@ function ChildContent() {
                   </button>
                 </div>
               ))
+            )}
+          </div>,
+
+          <div key="missions" className="space-y-4">
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+              {missions.length === 0 ? (
+                <p className="text-center text-[#8e8e93] py-10 text-[15px]">아직 미션이 없어요</p>
+              ) : (
+                missions.map((mission, idx) => {
+                  const isPending = pendingMissionIds.includes(mission.id);
+                  return (
+                    <div
+                      key={mission.id}
+                      className={`flex items-center gap-3 px-4 py-3.5 ${idx !== missions.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                    >
+                      <div className="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">
+                        {mission.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{mission.name}</p>
+                        <p className="text-[13px] font-semibold text-pink-500">{mission.reward} 💖</p>
+                      </div>
+                      <button
+                        onClick={() => openMissionSheet(mission)}
+                        disabled={isPending}
+                        className={`px-4 py-2 rounded-full font-semibold text-[13px] shrink-0 transition-all active:scale-95 ${
+                          isPending ? 'bg-black/5 text-[#c7c7cc]' : 'bg-[#1c1c1e] text-white'
+                        }`}
+                      >
+                        {isPending ? '요청중' : '요청하기'}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <button
+              onClick={() => openMissionSheet(undefined)}
+              className="w-full py-3.5 rounded-2xl border-2 border-dashed border-purple-200 text-purple-500 font-semibold text-[14px] active:bg-purple-50 transition-colors"
+            >
+              ✨ 다른 걸 했어요! 직접 요청하기
+            </button>
+
+            {myRequests.length > 0 && (
+              <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+                <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">내 요청 기록</p>
+                {myRequests.map((req, idx) => (
+                  <div
+                    key={req.id}
+                    className={`flex items-center gap-3 px-4 py-3 ${idx !== myRequests.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <span className="text-lg shrink-0">{req.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
+                      <p className="text-[12px] text-[#8e8e93]">
+                        {new Date(req.requested_at).toLocaleDateString('ko-KR')}
+                        {req.status === 'approved' && req.reward !== null && (
+                          <span className="ml-1.5 font-semibold text-green-600">+{req.reward} 💖</span>
+                        )}
+                      </p>
+                    </div>
+                    <span className="text-[12px] font-medium text-[#8e8e93] shrink-0">{STATUS_LABEL[req.status]}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>,
 
@@ -291,6 +443,14 @@ function ChildContent() {
 
       <TabBar items={TABS} activeId={activeTab} onChange={setActiveTab} accentColor="#db2777" />
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
+
+      {sheetOpen && (
+        <MissionRequestSheet
+          mission={sheetMission}
+          onClose={() => setSheetOpen(false)}
+          onSubmit={handleSheetSubmit}
+        />
+      )}
     </div>
   );
 }

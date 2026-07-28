@@ -4,7 +4,7 @@ import { sql } from '@vercel/postgres';
 
 export async function getChildData() {
   try {
-    const [child, shops, coupons, transactions] = await Promise.all([
+    const [child, shops, coupons, transactions, missions, pendingRequests, myRequests] = await Promise.all([
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price FROM shop_items ORDER BY created_at`,
       sql`
@@ -20,6 +20,14 @@ export async function getChildData() {
         ORDER BY created_at DESC
         LIMIT 50
       `,
+      sql`SELECT id, emoji, name, reward FROM missions ORDER BY created_at`,
+      sql`SELECT mission_id, status FROM mission_requests WHERE status = 'pending'`,
+      sql`
+        SELECT id, emoji, name, reward, status, is_custom, requested_at
+        FROM mission_requests
+        ORDER BY requested_at DESC
+        LIMIT 20
+      `,
     ]);
 
     return {
@@ -27,9 +35,58 @@ export async function getChildData() {
       shops: shops.rows,
       coupons: coupons.rows,
       transactions: transactions.rows,
+      missions: missions.rows,
+      pendingMissionIds: pendingRequests.rows.map((r: any) => r.mission_id),
+      myRequests: myRequests.rows,
     };
   } catch (error) {
     console.error('Error fetching child data:', error);
+    throw error;
+  }
+}
+
+export async function requestMission(missionId: string, photoData?: string | null) {
+  try {
+    const mission = await sql`SELECT emoji, name, reward FROM missions WHERE id = ${missionId}`;
+    if (!mission.rows.length) {
+      throw new Error('미션을 찾을 수 없습니다');
+    }
+
+    const existing = await sql`
+      SELECT id FROM mission_requests
+      WHERE mission_id = ${missionId} AND status = 'pending'
+    `;
+    if (existing.rows.length > 0) {
+      throw new Error('이미 요청한 미션이에요');
+    }
+
+    const { emoji, name, reward } = mission.rows[0] as any;
+    await sql`
+      INSERT INTO mission_requests (mission_id, emoji, name, reward, photo_data)
+      VALUES (${missionId}, ${emoji}, ${name}, ${reward}, ${photoData || null})
+    `;
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error requesting mission:', error);
+    throw error;
+  }
+}
+
+export async function requestCustomMission(description: string, photoData?: string | null) {
+  try {
+    if (!description.trim()) {
+      throw new Error('무엇을 했는지 적어주세요');
+    }
+
+    await sql`
+      INSERT INTO mission_requests (mission_id, is_custom, emoji, name, reward, photo_data)
+      VALUES (NULL, TRUE, '✨', ${description.trim()}, NULL, ${photoData || null})
+    `;
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error requesting custom mission:', error);
     throw error;
   }
 }

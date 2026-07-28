@@ -6,6 +6,8 @@ import Toast from '@/components/Toast';
 import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
 import SwipeableViews from '@/components/SwipeableViews';
+import { useUnlockAudio } from '@/hooks/useUnlockAudio';
+import { playChime, playSoftDown } from '@/lib/sound';
 import {
   getParentData,
   giveCoins,
@@ -14,15 +16,22 @@ import {
   deleteShopItem,
   updateChildPin,
   updateChildName,
+  addMission,
+  updateMission,
+  deleteMission,
+  approveMissionRequest,
+  rejectMissionRequest,
   getAccessLogs,
 } from './actions';
 
 const QUICK_AMOUNTS = [1, 3, 5, 10];
 const RANDOM_EMOJIS = ['🎁', '⭐', '🌈', '🍭', '🧸', '🎪', '🎨', '🍩', '🦄', '💝'];
+const MISSION_EMOJIS = ['🎯', '🌟', '🧸', '🎨', '🧩', '🏃', '🎵', '🌱'];
 
 const TABS = [
   { id: 'coins', label: '하트', icon: '💖' },
   { id: 'shop', label: '쿠폰', icon: '🛍️' },
+  { id: 'missions', label: '미션', icon: '🎯' },
   { id: 'settings', label: '설정', icon: '⚙️' },
   { id: 'logs', label: '기록', icon: '📋' },
 ];
@@ -33,6 +42,24 @@ interface ShopItem {
   emoji: string;
   name: string;
   price: number;
+}
+
+interface Mission {
+  id: string;
+  emoji: string;
+  name: string;
+  reward: number;
+}
+
+interface PendingRequest {
+  id: string;
+  mission_id: string | null;
+  is_custom: boolean;
+  emoji: string;
+  name: string;
+  reward: number | null;
+  photo_data: string | null;
+  requested_at: string;
 }
 
 interface AccessLog {
@@ -54,17 +81,30 @@ function deviceLabel(userAgent: string) {
 
 export default function ParentPage() {
   const router = useRouter();
+  useUnlockAudio();
+
   const [activeTab, setActiveTab] = useState<string>('coins');
   const [balance, setBalance] = useState<number>(0);
   const [childName, setChildName] = useState<string>('나');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [shops, setShops] = useState<ShopItem[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editName, setEditName] = useState<string>('');
   const [editPrice, setEditPrice] = useState<string>('');
+
+  const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
+  const [editMissionName, setEditMissionName] = useState<string>('');
+  const [editMissionReward, setEditMissionReward] = useState<string>('');
+  const [newMissionName, setNewMissionName] = useState<string>('');
+  const [newMissionReward, setNewMissionReward] = useState<string>('');
+  const [approveRewardInputs, setApproveRewardInputs] = useState<Record<string, string>>({});
 
   const [reason, setReason] = useState<string>('');
   const [amount, setAmount] = useState<string>('1');
@@ -83,6 +123,8 @@ export default function ParentPage() {
           setPhotoUrl((data.child as any).photo_data || null);
         }
         if (data.shops) setShops(data.shops as ShopItem[]);
+        if (data.missions) setMissions(data.missions as Mission[]);
+        if (data.pendingRequests) setPendingRequests(data.pendingRequests as PendingRequest[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -122,6 +164,7 @@ export default function ParentPage() {
       setToast(isGive ? `+${qty} 하트를 줬어요 💖` : `−${qty} 하트를 뺐어요`);
       setReason('');
       setAmount('1');
+      if (isGive) playChime();
 
       const data = await getParentData();
       if (data.child) setBalance((data.child as any).balance);
@@ -197,6 +240,116 @@ export default function ParentPage() {
     }
   };
 
+  const handleAddMission = async () => {
+    if (!newMissionName.trim() || !newMissionReward.trim() || parseInt(newMissionReward) < 1) {
+      setToast('미션 이름과 하트 개수를 입력해주세요');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const emoji = MISSION_EMOJIS[Math.floor(Math.random() * MISSION_EMOJIS.length)];
+      await addMission(emoji, newMissionName.trim(), parseInt(newMissionReward));
+      setNewMissionName('');
+      setNewMissionReward('');
+      setToast('미션을 추가했어요! 🎯');
+
+      const data = await getParentData();
+      if (data.missions) setMissions(data.missions as Mission[]);
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startEditMission = (mission: Mission) => {
+    setEditingMissionId(mission.id);
+    setEditMissionName(mission.name);
+    setEditMissionReward(String(mission.reward));
+  };
+
+  const handleSaveEditMission = async (id: string) => {
+    if (!editMissionName.trim() || !editMissionReward.trim() || parseInt(editMissionReward) < 1) {
+      setToast('이름과 하트 개수를 확인해주세요');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const reward = parseInt(editMissionReward);
+      await updateMission(id, editMissionName.trim(), reward);
+      setMissions(missions.map((m) => (m.id === id ? { ...m, name: editMissionName.trim(), reward } : m)));
+      setEditingMissionId(null);
+      setToast('미션을 수정했어요! ✏️');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteMission = async (id: string) => {
+    if (!window.confirm('이 미션을 삭제할까요?')) return;
+    try {
+      setIsLoading(true);
+      await deleteMission(id);
+      setMissions(missions.filter((m) => m.id !== id));
+      setToast('미션을 삭제했어요');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApproveRequest = async (request: PendingRequest) => {
+    let overrideReward: number | undefined;
+    if (request.reward === null) {
+      const input = approveRewardInputs[request.id];
+      const parsed = parseInt(input || '', 10);
+      if (!parsed || parsed < 1) {
+        setToast('하트 개수를 입력해주세요');
+        return;
+      }
+      overrideReward = parsed;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await approveMissionRequest(request.id, overrideReward);
+      setPendingRequests(pendingRequests.filter((r) => r.id !== request.id));
+      setBalance(balance + ((result as any).reward || 0));
+      playChime();
+      setToast(`+${(result as any).reward} 하트를 승인했어요! 💖`);
+
+      const data = await getParentData();
+      if (data.child) setBalance((data.child as any).balance);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    if (!window.confirm('이 요청을 거절할까요?')) return;
+    try {
+      setIsLoading(true);
+      await rejectMissionRequest(requestId);
+      setPendingRequests(pendingRequests.filter((r) => r.id !== requestId));
+      playSoftDown();
+      setToast('요청을 거절했어요');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleUpdatePin = async () => {
     if (newChildPin.length !== 4) {
       setToast('비밀번호는 4자리여야 해요');
@@ -237,6 +390,9 @@ export default function ParentPage() {
   const handleLogout = () => router.push('/');
   const handlePreviewChild = () => router.push('/child?preview=parent');
 
+  const tabsWithBadge = TABS.map((t) =>
+    t.id === 'missions' && pendingRequests.length > 0 ? { ...t, badge: pendingRequests.length } : t
+  );
   const activeIndex = Math.max(TAB_IDS.indexOf(activeTab), 0);
 
   if (isLoading && balance === 0 && shops.length === 0) {
@@ -436,6 +592,164 @@ export default function ParentPage() {
             </div>
           </div>,
 
+          <div key="missions" className="space-y-5">
+            {pendingRequests.length > 0 && (
+              <div className="rounded-2xl bg-white shadow-sm border border-pink-200 overflow-hidden">
+                <p className="text-[13px] font-semibold text-pink-500 px-4 pt-4 pb-2">
+                  🔔 아이가 요청했어요 ({pendingRequests.length})
+                </p>
+                {pendingRequests.map((req, idx) => (
+                  <div
+                    key={req.id}
+                    className={`px-4 py-3.5 ${idx !== pendingRequests.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl shrink-0">
+                        {req.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[15px] text-[#1c1c1e]">{req.name}</p>
+                        <p className="text-[12px] text-[#8e8e93]">
+                          {new Date(req.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {req.reward !== null && <span className="ml-1.5 font-semibold text-pink-500">· {req.reward} 💖</span>}
+                        </p>
+                        {req.photo_data && (
+                          <button onClick={() => setViewingPhoto(req.photo_data)} className="mt-2 block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={req.photo_data} alt="첨부 사진" className="w-full max-w-[200px] rounded-xl border border-black/5" />
+                          </button>
+                        )}
+                        {req.reward === null && (
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            value={approveRewardInputs[req.id] || ''}
+                            onChange={(e) => setApproveRewardInputs({ ...approveRewardInputs, [req.id]: e.target.value })}
+                            placeholder="줄 하트 개수 입력"
+                            min="1"
+                            className="w-full mt-2 px-3 py-2 bg-black/[0.03] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          />
+                        )}
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                          <button
+                            onClick={() => handleApproveRequest(req)}
+                            disabled={isLoading}
+                            className="py-2.5 bg-pink-500 text-white font-semibold text-[13px] rounded-lg active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            승인 💖
+                          </button>
+                          <button
+                            onClick={() => handleRejectRequest(req.id)}
+                            disabled={isLoading}
+                            className="py-2.5 bg-black/5 text-[#8e8e93] font-semibold text-[13px] rounded-lg active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            거절
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+              {missions.length === 0 ? (
+                <p className="text-center text-[#8e8e93] py-10 text-[15px]">미션이 없어요</p>
+              ) : (
+                missions.map((mission, idx) => {
+                  const isEditing = editingMissionId === mission.id;
+                  return (
+                    <div
+                      key={mission.id}
+                      className={`px-4 py-3.5 ${idx !== missions.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                    >
+                      {isEditing ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editMissionName}
+                            onChange={(e) => setEditMissionName(e.target.value)}
+                            className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          />
+                          <input
+                            type="number"
+                            value={editMissionReward}
+                            onChange={(e) => setEditMissionReward(e.target.value)}
+                            min="1"
+                            className="w-16 px-2 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          />
+                          <button
+                            onClick={() => handleSaveEditMission(mission.id)}
+                            disabled={isLoading}
+                            className="px-3 py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => setEditingMissionId(null)}
+                            className="px-3 py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">
+                            {mission.emoji}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{mission.name}</p>
+                            <p className="text-[13px] text-[#8e8e93]">{mission.reward} 💖</p>
+                          </div>
+                          <button
+                            onClick={() => startEditMission(mission)}
+                            className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-[13px] shrink-0 active:scale-90 transition-all"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMission(mission.id)}
+                            disabled={isLoading}
+                            className="w-8 h-8 rounded-full bg-red-50 text-red-500 text-[15px] shrink-0 active:scale-90 transition-all disabled:opacity-50"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 미션 추가</p>
+              <input
+                type="text"
+                value={newMissionName}
+                onChange={(e) => setNewMissionName(e.target.value)}
+                placeholder="미션 이름 (예: 책 읽기)"
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+              <input
+                type="number"
+                value={newMissionReward}
+                onChange={(e) => setNewMissionReward(e.target.value)}
+                placeholder="완료 시 줄 하트 개수"
+                min="1"
+                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-3 focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+              <button
+                onClick={handleAddMission}
+                disabled={isLoading}
+                className="w-full py-3.5 bg-[#1c1c1e] text-white font-semibold rounded-xl active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                미션 추가하기
+              </button>
+            </div>
+          </div>,
+
           <div key="settings" className="space-y-5">
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">아이 화면 미리보기</p>
@@ -516,8 +830,18 @@ export default function ParentPage() {
         ]}
       </SwipeableViews>
 
-      <TabBar items={TABS} activeId={activeTab} onChange={setActiveTab} accentColor="#9333ea" />
+      <TabBar items={tabsWithBadge} activeId={activeTab} onChange={setActiveTab} accentColor="#9333ea" />
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
+
+      {viewingPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+          onClick={() => setViewingPhoto(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={viewingPhoto} alt="첨부 사진 크게 보기" className="max-w-full max-h-full rounded-2xl" />
+        </div>
+      )}
     </div>
   );
 }

@@ -77,6 +77,41 @@ export async function initializeDatabase() {
       );
     `;
 
+    // missions table (parent-defined tasks with a heart reward)
+    await sql`
+      CREATE TABLE IF NOT EXISTS missions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        emoji VARCHAR(50) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        reward INTEGER NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // mission_requests table (child's "I did it" requests; snapshot fields so
+    // history stays intact even if the mission is later edited or removed).
+    // reward is nullable for custom (parent-less-preset) requests, where the
+    // parent decides the reward amount at approval time.
+    await sql`
+      CREATE TABLE IF NOT EXISTS mission_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        mission_id UUID REFERENCES missions(id) ON DELETE SET NULL,
+        is_custom BOOLEAN NOT NULL DEFAULT FALSE,
+        emoji VARCHAR(50) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        reward INTEGER,
+        photo_data TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP WITH TIME ZONE
+      );
+    `;
+
+    // Migration: add columns if table already existed without them
+    await sql`ALTER TABLE mission_requests ADD COLUMN IF NOT EXISTS is_custom BOOLEAN NOT NULL DEFAULT FALSE`;
+    await sql`ALTER TABLE mission_requests ADD COLUMN IF NOT EXISTS photo_data TEXT`;
+    await sql`ALTER TABLE mission_requests ALTER COLUMN reward DROP NOT NULL`;
+
     console.log('✓ Database tables initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);
@@ -123,6 +158,24 @@ export async function seedDatabase() {
         await sql`
           INSERT INTO shop_items (emoji, name, price)
           VALUES (${item.emoji}, ${item.name}, ${item.price})
+        `;
+      }
+    }
+
+    // Check if missions already exist
+    const missionsExist = await sql`SELECT * FROM missions LIMIT 1`;
+    if (missionsExist.rows.length === 0) {
+      const defaultMissions = [
+        { emoji: '🛏️', name: '이불 정리하기', reward: 2 },
+        { emoji: '📚', name: '책 30분 읽기', reward: 3 },
+        { emoji: '🦷', name: '양치 꼼꼼히 하기', reward: 1 },
+        { emoji: '🧹', name: '내 방 청소하기', reward: 4 },
+      ];
+
+      for (const mission of defaultMissions) {
+        await sql`
+          INSERT INTO missions (emoji, name, reward)
+          VALUES (${mission.emoji}, ${mission.name}, ${mission.reward})
         `;
       }
     }

@@ -5,6 +5,7 @@ export interface TabBarItem {
   label: string;
   icon: string;
   activeIcon?: string;
+  badge?: number;
 }
 
 interface TabBarProps {
@@ -26,8 +27,15 @@ export default function TabBar({ items, activeId, onChange, accentColor = '#e11d
               onClick={() => onChange(item.id)}
               className="flex-1 flex flex-col items-center justify-center gap-0.5 pt-2 pb-1 transition-transform active:scale-95"
             >
-              <span className="text-[22px] leading-none" style={{ filter: isActive ? 'none' : 'grayscale(0.6) opacity(0.6)' }}>
-                {isActive && item.activeIcon ? item.activeIcon : item.icon}
+              <span className="relative inline-block">
+                <span className="text-[22px] leading-none" style={{ filter: isActive ? 'none' : 'grayscale(0.6) opacity(0.6)' }}>
+                  {isActive && item.activeIcon ? item.activeIcon : item.icon}
+                </span>
+                {!!item.badge && (
+                  <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
               </span>
               <span
                 className="text-[10px] font-medium"

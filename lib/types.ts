@@ -41,6 +41,29 @@ export interface Transaction {
   created_at: Date;
 }
 
+export interface Mission {
+  id: string;
+  emoji: string;
+  name: string;
+  reward: number;
+  created_at: Date;
+}
+
+export type MissionRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface MissionRequest {
+  id: string;
+  mission_id: string | null;
+  is_custom: boolean;
+  emoji: string;
+  name: string;
+  reward: number | null;
+  photo_data: string | null;
+  status: MissionRequestStatus;
+  requested_at: Date;
+  resolved_at: Date | null;
+}
+
 export interface AccessLog {
   id: string;
   role: Role;
