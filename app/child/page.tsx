@@ -21,6 +21,7 @@ import {
   requestCustomMission,
   proposeShopItem,
   reorderShopItems,
+  reorderMissions,
 } from './actions';
 
 const TABS = [
@@ -59,6 +60,7 @@ interface Mission {
   emoji: string;
   name: string;
   reward: number;
+  sort_order?: number | null;
 }
 
 interface MyRequest {
@@ -249,6 +251,15 @@ function ChildContent() {
     }
   };
 
+  const handleReorderMissions = async (newOrder: Mission[]) => {
+    setMissions(newOrder);
+    try {
+      await reorderMissions(newOrder.map((m) => m.id));
+    } catch (error) {
+      console.error('Error reordering missions:', error);
+    }
+  };
+
   const handleProposeShopItem = async (data: { emoji: string; name: string; price: number }) => {
     await proposeShopItem(data.emoji, data.name, data.price);
     setShopProposalOpen(false);
@@ -398,34 +409,37 @@ function ChildContent() {
               {missions.length === 0 ? (
                 <p className="text-center text-[#8e8e93] py-10 text-[15px]">아직 미션이 없어요</p>
               ) : (
-                missions.map((mission, idx) => {
-                  const isPending = pendingMissionIds.includes(mission.id);
-                  return (
-                    <div
-                      key={mission.id}
-                      className={`flex items-center gap-3 px-4 py-3.5 ${idx !== missions.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
-                    >
-                      <div className="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">
-                        {mission.emoji}
+                <ReorderableList
+                  items={missions}
+                  onReorder={handleReorderMissions}
+                  renderItem={(mission) => {
+                    const isPending = pendingMissionIds.includes(mission.id);
+                    return (
+                      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-black/[0.06]">
+                        <div className="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">
+                          {mission.emoji}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{mission.name}</p>
+                          <p className="text-[13px] font-semibold text-pink-500">{mission.reward} 💖</p>
+                        </div>
+                        <button
+                          onClick={() => openMissionSheet(mission)}
+                          disabled={isPending}
+                          className={`px-4 py-2 rounded-full font-semibold text-[13px] shrink-0 transition-all active:scale-95 ${
+                            isPending ? 'bg-black/5 text-[#c7c7cc]' : 'bg-[#1c1c1e] text-white'
+                          }`}
+                        >
+                          {isPending ? '요청중' : '요청하기'}
+                        </button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{mission.name}</p>
-                        <p className="text-[13px] font-semibold text-pink-500">{mission.reward} 💖</p>
-                      </div>
-                      <button
-                        onClick={() => openMissionSheet(mission)}
-                        disabled={isPending}
-                        className={`px-4 py-2 rounded-full font-semibold text-[13px] shrink-0 transition-all active:scale-95 ${
-                          isPending ? 'bg-black/5 text-[#c7c7cc]' : 'bg-[#1c1c1e] text-white'
-                        }`}
-                      >
-                        {isPending ? '요청중' : '요청하기'}
-                      </button>
-                    </div>
-                  );
-                })
+                    );
+                  }}
+                />
               )}
             </div>
+
+            <p className="text-[12px] text-[#8e8e93] text-center px-4">⠿ 을 눌러서 위아래로 끌면 순서를 바꿀 수 있어요</p>
 
             <button
               onClick={() => openMissionSheet(undefined)}

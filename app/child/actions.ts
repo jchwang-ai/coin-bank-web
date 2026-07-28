@@ -1,6 +1,7 @@
 'use server';
 
 import { sql } from '@vercel/postgres';
+import { logActivity } from '@/lib/activity';
 
 export async function getChildData() {
   try {
@@ -20,7 +21,7 @@ export async function getChildData() {
         ORDER BY created_at DESC
         LIMIT 50
       `,
-      sql`SELECT id, emoji, name, reward FROM missions ORDER BY created_at`,
+      sql`SELECT id, emoji, name, reward, sort_order FROM missions ORDER BY sort_order NULLS LAST, created_at`,
       sql`SELECT mission_id, status FROM mission_requests WHERE status = 'pending'`,
       sql`
         SELECT id, emoji, name, reward, status, is_custom, requested_at
@@ -126,9 +127,25 @@ export async function reorderShopItems(orderedIds: string[]) {
         sql`UPDATE shop_items SET sort_order = ${index} WHERE id = ${id}`
       )
     );
+    await logActivity('child', '상점 순서 변경');
     return { success: true };
   } catch (error) {
     console.error('Error reordering shop items:', error);
+    throw error;
+  }
+}
+
+export async function reorderMissions(orderedIds: string[]) {
+  try {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        sql`UPDATE missions SET sort_order = ${index} WHERE id = ${id}`
+      )
+    );
+    await logActivity('child', '미션 순서 변경');
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering missions:', error);
     throw error;
   }
 }
@@ -140,6 +157,7 @@ export async function updateChildPhoto(photoData: string) {
       SET photo_data = ${photoData}
       WHERE id = (SELECT id FROM child_account LIMIT 1)
     `;
+    await logActivity('child', '프로필 사진 변경');
     return { success: true };
   } catch (error) {
     console.error('Error updating child photo:', error);

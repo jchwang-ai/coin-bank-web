@@ -7,6 +7,7 @@ import TabBar from '@/components/TabBar';
 import AvatarUpload from '@/components/AvatarUpload';
 import SwipeableViews from '@/components/SwipeableViews';
 import EmojiPicker from '@/components/EmojiPicker';
+import NumberStepper from '@/components/NumberStepper';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSoftDown } from '@/lib/sound';
 import {
@@ -25,6 +26,7 @@ import {
   approveShopItemRequest,
   rejectShopItemRequest,
   getAccessLogs,
+  getActivityLogs,
 } from './actions';
 
 const QUICK_AMOUNTS = [1, 3, 5, 10];
@@ -51,6 +53,7 @@ interface Mission {
   emoji: string;
   name: string;
   reward: number;
+  sort_order?: number | null;
 }
 
 interface PendingRequest {
@@ -79,6 +82,13 @@ interface AccessLog {
   logged_out_at: string | null;
 }
 
+interface ActivityLog {
+  actor: string;
+  action: string;
+  detail: string | null;
+  created_at: string;
+}
+
 function deviceLabel(userAgent: string) {
   if (!userAgent) return '알 수 없는 기기';
   if (/iphone/i.test(userAgent)) return '📱 아이폰';
@@ -102,6 +112,8 @@ export default function ParentPage() {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingShopRequests, setPendingShopRequests] = useState<PendingShopRequest[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [direction, setDirection] = useState<'give' | 'take'>('give');
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
@@ -113,10 +125,10 @@ export default function ParentPage() {
 
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [editMissionName, setEditMissionName] = useState<string>('');
-  const [editMissionReward, setEditMissionReward] = useState<string>('');
+  const [editMissionReward, setEditMissionReward] = useState<number>(1);
   const [editMissionEmoji, setEditMissionEmoji] = useState<string>('🎯');
   const [newMissionName, setNewMissionName] = useState<string>('');
-  const [newMissionReward, setNewMissionReward] = useState<string>('');
+  const [newMissionReward, setNewMissionReward] = useState<number>(1);
   const [newMissionEmoji, setNewMissionEmoji] = useState<string>('🎯');
   const [approveRewardInputs, setApproveRewardInputs] = useState<Record<string, string>>({});
   const [shopApprovePriceInputs, setShopApprovePriceInputs] = useState<Record<string, string>>({});
@@ -158,6 +170,9 @@ export default function ParentPage() {
     if (activeTab === 'logs') {
       getAccessLogs()
         .then((rows) => setLogs(rows as AccessLog[]))
+        .catch((err) => console.error(err));
+      getActivityLogs()
+        .then((rows) => setActivityLogs(rows as ActivityLog[]))
         .catch((err) => console.error(err));
     }
   }, [activeTab]);
@@ -259,15 +274,15 @@ export default function ParentPage() {
   };
 
   const handleAddMission = async () => {
-    if (!newMissionName.trim() || !newMissionReward.trim() || parseInt(newMissionReward) < 1) {
-      setToast('미션 이름과 하트 개수를 입력해주세요');
+    if (!newMissionName.trim()) {
+      setToast('미션 이름을 입력해주세요');
       return;
     }
     try {
       setIsLoading(true);
-      await addMission(newMissionEmoji, newMissionName.trim(), parseInt(newMissionReward));
+      await addMission(newMissionEmoji, newMissionName.trim(), newMissionReward);
       setNewMissionName('');
-      setNewMissionReward('');
+      setNewMissionReward(1);
       setNewMissionEmoji('🎯');
       setToast('미션을 추가했어요! 🎯');
 
@@ -284,20 +299,19 @@ export default function ParentPage() {
   const startEditMission = (mission: Mission) => {
     setEditingMissionId(mission.id);
     setEditMissionName(mission.name);
-    setEditMissionReward(String(mission.reward));
+    setEditMissionReward(mission.reward);
     setEditMissionEmoji(mission.emoji);
   };
 
   const handleSaveEditMission = async (id: string) => {
-    if (!editMissionName.trim() || !editMissionReward.trim() || parseInt(editMissionReward) < 1) {
-      setToast('이름과 하트 개수를 확인해주세요');
+    if (!editMissionName.trim()) {
+      setToast('이름을 확인해주세요');
       return;
     }
     try {
       setIsLoading(true);
-      const reward = parseInt(editMissionReward);
-      await updateMission(id, editMissionName.trim(), reward, editMissionEmoji);
-      setMissions(missions.map((m) => (m.id === id ? { ...m, name: editMissionName.trim(), reward, emoji: editMissionEmoji } : m)));
+      await updateMission(id, editMissionName.trim(), editMissionReward, editMissionEmoji);
+      setMissions(missions.map((m) => (m.id === id ? { ...m, name: editMissionName.trim(), reward: editMissionReward, emoji: editMissionEmoji } : m)));
       setEditingMissionId(null);
       setToast('미션을 수정했어요! ✏️');
     } catch (error) {
@@ -499,6 +513,25 @@ export default function ParentPage() {
       >
         {[
           <div key="coins" className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setDirection('give')}
+                className={`py-3.5 font-bold rounded-xl transition-all active:scale-[0.97] ${
+                  direction === 'give' ? 'bg-pink-500 text-white' : 'bg-pink-50 text-pink-500'
+                }`}
+              >
+                💖 하트 주기
+              </button>
+              <button
+                onClick={() => setDirection('take')}
+                className={`py-3.5 font-bold rounded-xl transition-all active:scale-[0.97] ${
+                  direction === 'take' ? 'bg-red-500 text-white' : 'bg-red-50 text-red-500'
+                }`}
+              >
+                💔 하트 빼기
+              </button>
+            </div>
+
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">하트 개수</p>
               <div className="grid grid-cols-4 gap-2 mb-3">
@@ -507,22 +540,37 @@ export default function ParentPage() {
                     key={q}
                     onClick={() => setAmount(String(q))}
                     className={`py-3.5 font-bold rounded-xl transition-all active:scale-95 ${
-                      amount === String(q) ? 'bg-pink-500 text-white' : 'bg-pink-50 text-pink-600'
+                      amount === String(q)
+                        ? direction === 'give'
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-red-500 text-white'
+                        : direction === 'give'
+                          ? 'bg-pink-50 text-pink-600'
+                          : 'bg-red-50 text-red-500'
                     }`}
                   >
-                    {q}
+                    {direction === 'give' ? `+${q}` : `−${q}`}
                   </button>
                 ))}
               </div>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                min="1"
-                placeholder="직접 입력"
-                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] text-center font-semibold focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
+              <div className="relative">
+                <span
+                  className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-[15px] ${
+                    direction === 'give' ? 'text-pink-500' : 'text-red-500'
+                  }`}
+                >
+                  {direction === 'give' ? '+' : '−'}
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  min="1"
+                  placeholder="직접 입력"
+                  className="w-full pl-8 pr-4 py-3 bg-black/[0.03] rounded-xl text-[15px] text-center font-semibold focus:outline-none focus:ring-2 focus:ring-purple-300"
+                />
+              </div>
             </div>
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
@@ -538,22 +586,15 @@ export default function ParentPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => handleGiveCoins(true)}
-                disabled={isLoading}
-                className="py-4 bg-pink-500 text-white font-bold rounded-xl active:scale-[0.97] transition-all disabled:opacity-50"
-              >
-                💖 하트 주기
-              </button>
-              <button
-                onClick={() => handleGiveCoins(false)}
-                disabled={isLoading}
-                className="py-4 bg-red-50 text-red-500 font-bold rounded-xl active:scale-[0.97] transition-all disabled:opacity-50"
-              >
-                💔 하트 빼기
-              </button>
-            </div>
+            <button
+              onClick={() => handleGiveCoins(direction === 'give')}
+              disabled={isLoading}
+              className={`w-full py-4 text-white font-bold rounded-xl active:scale-[0.98] transition-all disabled:opacity-50 ${
+                direction === 'give' ? 'bg-pink-500' : 'bg-red-500'
+              }`}
+            >
+              {direction === 'give' ? `💖 +${amount || 0} 하트 주기` : `💔 −${amount || 0} 하트 빼기`}
+            </button>
           </div>,
 
           <div key="shop" className="space-y-5">
@@ -783,34 +824,32 @@ export default function ParentPage() {
                       className={`px-4 py-3.5 ${idx !== missions.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
                     >
                       {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <EmojiPicker value={editMissionEmoji} onChange={setEditMissionEmoji} />
-                          <input
-                            type="text"
-                            value={editMissionName}
-                            onChange={(e) => setEditMissionName(e.target.value)}
-                            className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          />
-                          <input
-                            type="number"
-                            value={editMissionReward}
-                            onChange={(e) => setEditMissionReward(e.target.value)}
-                            min="1"
-                            className="w-16 px-2 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          />
-                          <button
-                            onClick={() => handleSaveEditMission(mission.id)}
-                            disabled={isLoading}
-                            className="px-3 py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
-                          >
-                            저장
-                          </button>
-                          <button
-                            onClick={() => setEditingMissionId(null)}
-                            className="px-3 py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold shrink-0 active:scale-95 transition-all"
-                          >
-                            취소
-                          </button>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <EmojiPicker value={editMissionEmoji} onChange={setEditMissionEmoji} />
+                            <input
+                              type="text"
+                              value={editMissionName}
+                              onChange={(e) => setEditMissionName(e.target.value)}
+                              className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                            />
+                          </div>
+                          <NumberStepper value={editMissionReward} onChange={setEditMissionReward} />
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleSaveEditMission(mission.id)}
+                              disabled={isLoading}
+                              className="py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold active:scale-95 transition-all"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingMissionId(null)}
+                              className="py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold active:scale-95 transition-all"
+                            >
+                              취소
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-3">
@@ -844,7 +883,7 @@ export default function ParentPage() {
 
             <div className="rounded-2xl bg-white shadow-sm border border-black/5 p-4">
               <p className="text-[13px] font-semibold text-[#8e8e93] mb-3 px-1">새 미션 추가</p>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <EmojiPicker value={newMissionEmoji} onChange={setNewMissionEmoji} />
                 <input
                   type="text"
@@ -854,14 +893,10 @@ export default function ParentPage() {
                   className="flex-1 min-w-0 px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300"
                 />
               </div>
-              <input
-                type="number"
-                value={newMissionReward}
-                onChange={(e) => setNewMissionReward(e.target.value)}
-                placeholder="완료 시 줄 하트 개수"
-                min="1"
-                className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-3 focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
+              <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-1">완료 시 줄 하트 개수</p>
+              <div className="mb-3">
+                <NumberStepper value={newMissionReward} onChange={setNewMissionReward} />
+              </div>
               <button
                 onClick={handleAddMission}
                 disabled={isLoading}
@@ -924,30 +959,58 @@ export default function ParentPage() {
             </div>
           </div>,
 
-          <div key="logs" className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
-            {logs.length === 0 ? (
-              <p className="text-center text-[#8e8e93] py-10 text-[15px]">접속 기록이 없어요</p>
-            ) : (
-              logs.map((log, idx) => (
-                <div
-                  key={idx}
-                  className={`flex items-center justify-between px-4 py-3.5 ${idx !== logs.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-lg shrink-0">{log.role === 'parent' ? '👨‍👩‍👧' : '👧'}</span>
-                    <div className="min-w-0">
-                      <p className="font-medium text-[14px] text-[#1c1c1e]">
-                        {log.role === 'parent' ? '부모님' : '아이'} 접속
-                      </p>
-                      <p className="text-[12px] text-[#8e8e93] truncate">{deviceLabel(log.user_agent)}</p>
+          <div key="logs" className="space-y-5">
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+              <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">📋 변경 기록</p>
+              {activityLogs.length === 0 ? (
+                <p className="text-center text-[#8e8e93] py-10 text-[15px]">변경 기록이 없어요</p>
+              ) : (
+                activityLogs.map((log, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between px-4 py-3.5 ${idx !== activityLogs.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-lg shrink-0">{log.actor === 'parent' ? '👨‍👩‍👧' : '👧'}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-[14px] text-[#1c1c1e]">{log.action}</p>
+                        {log.detail && <p className="text-[12px] text-[#8e8e93] truncate">{log.detail}</p>}
+                      </div>
                     </div>
+                    <p className="text-[12px] text-[#8e8e93] shrink-0">
+                      {new Date(log.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
-                  <p className="text-[12px] text-[#8e8e93] shrink-0">
-                    {new Date(log.logged_in_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+              <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">🔑 로그인 기록</p>
+              {logs.length === 0 ? (
+                <p className="text-center text-[#8e8e93] py-10 text-[15px]">접속 기록이 없어요</p>
+              ) : (
+                logs.map((log, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between px-4 py-3.5 ${idx !== logs.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-lg shrink-0">{log.role === 'parent' ? '👨‍👩‍👧' : '👧'}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-[14px] text-[#1c1c1e]">
+                          {log.role === 'parent' ? '부모님' : '아이'} 접속
+                        </p>
+                        <p className="text-[12px] text-[#8e8e93] truncate">{deviceLabel(log.user_agent)}</p>
+                      </div>
+                    </div>
+                    <p className="text-[12px] text-[#8e8e93] shrink-0">
+                      {new Date(log.logged_in_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>,
         ]}
       </SwipeableViews>

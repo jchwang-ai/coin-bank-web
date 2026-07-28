@@ -60,6 +60,7 @@ export interface Mission {
   emoji: string;
   name: string;
   reward: number;
+  sort_order: number | null;
   created_at: Date;
 }
 
@@ -85,6 +86,14 @@ export interface AccessLog {
   ip_address: string;
   logged_in_at: Date;
   logged_out_at: Date | null;
+}
+
+export interface ActivityLog {
+  id: string;
+  actor: Role;
+  action: string;
+  detail: string | null;
+  created_at: Date;
 }
 
 export interface Session {

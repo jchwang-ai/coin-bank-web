@@ -110,8 +110,20 @@ export async function initializeDatabase() {
         emoji VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
         reward INTEGER NOT NULL,
+        sort_order INTEGER,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+    `;
+    await sql`ALTER TABLE missions ADD COLUMN IF NOT EXISTS sort_order INTEGER`;
+    await sql`
+      UPDATE missions
+      SET sort_order = sub.rn
+      FROM (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) AS rn
+        FROM missions
+        WHERE sort_order IS NULL
+      ) sub
+      WHERE missions.id = sub.id
     `;
 
     // mission_requests table (child's "I did it" requests; snapshot fields so
@@ -137,6 +149,19 @@ export async function initializeDatabase() {
     await sql`ALTER TABLE mission_requests ADD COLUMN IF NOT EXISTS is_custom BOOLEAN NOT NULL DEFAULT FALSE`;
     await sql`ALTER TABLE mission_requests ADD COLUMN IF NOT EXISTS photo_data TEXT`;
     await sql`ALTER TABLE mission_requests ALTER COLUMN reward DROP NOT NULL`;
+
+    // activity_logs table (change history: name/pin/photo changes, shop &
+    // mission CRUD, reordering — separate from access_logs which is just
+    // login sessions, and from transactions which is heart movements)
+    await sql`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        actor VARCHAR(20) NOT NULL,
+        action VARCHAR(255) NOT NULL,
+        detail VARCHAR(500),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
 
     console.log('✓ Database tables initialized successfully');
   } catch (error) {

@@ -1,6 +1,7 @@
 'use server';
 
 import { sql } from '@vercel/postgres';
+import { logActivity } from '@/lib/activity';
 
 export async function getParentData() {
   try {
@@ -8,7 +9,7 @@ export async function getParentData() {
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price, sort_order FROM shop_items ORDER BY sort_order NULLS LAST, created_at`,
       sql`SELECT type, amount, description, created_at FROM transactions ORDER BY created_at DESC LIMIT 50`,
-      sql`SELECT id, emoji, name, reward FROM missions ORDER BY created_at`,
+      sql`SELECT id, emoji, name, reward, sort_order FROM missions ORDER BY sort_order NULLS LAST, created_at`,
       sql`
         SELECT id, mission_id, is_custom, emoji, name, reward, photo_data, requested_at
         FROM mission_requests
@@ -66,7 +67,7 @@ export async function addShopItem(emoji: string, name: string, price: number) {
       VALUES (${emoji}, ${name}, ${price})
       RETURNING id, emoji, name, price
     `;
-
+    await logActivity('parent', '쿠폰 추가', `${emoji} ${name} (${price}💖)`);
     return { success: true, item: result.rows[0] };
   } catch (error) {
     console.error('Error adding shop item:', error);
@@ -81,7 +82,7 @@ export async function updateShopItem(id: string, name: string, price: number, em
       SET name = ${name}, price = ${price}, emoji = ${emoji}
       WHERE id = ${id}
     `;
-
+    await logActivity('parent', '쿠폰 수정', `${emoji} ${name} (${price}💖)`);
     return { success: true };
   } catch (error) {
     console.error('Error updating shop item:', error);
@@ -91,7 +92,12 @@ export async function updateShopItem(id: string, name: string, price: number, em
 
 export async function deleteShopItem(id: string) {
   try {
+    const item = await sql`SELECT emoji, name FROM shop_items WHERE id = ${id}`;
     await sql`DELETE FROM shop_items WHERE id = ${id}`;
+    if (item.rows.length) {
+      const { emoji, name } = item.rows[0] as any;
+      await logActivity('parent', '쿠폰 삭제', `${emoji} ${name}`);
+    }
     return { success: true };
   } catch (error) {
     console.error('Error deleting shop item:', error);
@@ -107,7 +113,7 @@ export async function updateChildPin(newPin: string) {
       SET pin = ${hashedPin}
       WHERE id = (SELECT id FROM child_account LIMIT 1)
     `;
-
+    await logActivity('parent', '자녀 비밀번호 변경');
     return { success: true };
   } catch (error) {
     console.error('Error updating child PIN:', error);
@@ -117,11 +123,14 @@ export async function updateChildPin(newPin: string) {
 
 export async function updateChildName(name: string) {
   try {
+    const before = await sql`SELECT name FROM child_account LIMIT 1`;
+    const oldName = before.rows[0] ? (before.rows[0] as any).name : null;
     await sql`
       UPDATE child_account
       SET name = ${name}
       WHERE id = (SELECT id FROM child_account LIMIT 1)
     `;
+    await logActivity('parent', '자녀 이름 변경', oldName ? `${oldName} → ${name}` : name);
     return { success: true };
   } catch (error) {
     console.error('Error updating child name:', error);
@@ -136,6 +145,7 @@ export async function addMission(emoji: string, name: string, reward: number) {
       VALUES (${emoji}, ${name}, ${reward})
       RETURNING id, emoji, name, reward
     `;
+    await logActivity('parent', '미션 추가', `${emoji} ${name} (${reward}💖)`);
     return { success: true, mission: result.rows[0] };
   } catch (error) {
     console.error('Error adding mission:', error);
@@ -150,6 +160,7 @@ export async function updateMission(id: string, name: string, reward: number, em
       SET name = ${name}, reward = ${reward}, emoji = ${emoji}
       WHERE id = ${id}
     `;
+    await logActivity('parent', '미션 수정', `${emoji} ${name} (${reward}💖)`);
     return { success: true };
   } catch (error) {
     console.error('Error updating mission:', error);
@@ -159,7 +170,12 @@ export async function updateMission(id: string, name: string, reward: number, em
 
 export async function deleteMission(id: string) {
   try {
+    const mission = await sql`SELECT emoji, name FROM missions WHERE id = ${id}`;
     await sql`DELETE FROM missions WHERE id = ${id}`;
+    if (mission.rows.length) {
+      const { emoji, name } = mission.rows[0] as any;
+      await logActivity('parent', '미션 삭제', `${emoji} ${name}`);
+    }
     return { success: true };
   } catch (error) {
     console.error('Error deleting mission:', error);
@@ -271,6 +287,21 @@ export async function rejectShopItemRequest(requestId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error rejecting shop item request:', error);
+    throw error;
+  }
+}
+
+export async function getActivityLogs() {
+  try {
+    const result = await sql`
+      SELECT actor, action, detail, created_at
+      FROM activity_logs
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    return result.rows;
+  } catch (error) {
+    console.error('Error fetching activity logs:', error);
     throw error;
   }
 }
