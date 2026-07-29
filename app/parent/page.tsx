@@ -26,6 +26,8 @@ import {
   rejectMissionRequest,
   approveShopItemRequest,
   rejectShopItemRequest,
+  approveMissionProposal,
+  rejectMissionProposal,
   reorderShopItems,
   reorderMissions,
   getAccessLogs,
@@ -78,6 +80,14 @@ interface PendingShopRequest {
   requested_at: string;
 }
 
+interface PendingMissionProposal {
+  id: string;
+  emoji: string;
+  name: string;
+  requested_reward: number;
+  requested_at: string;
+}
+
 interface AccessLog {
   role: string;
   user_agent: string;
@@ -114,6 +124,7 @@ export default function ParentPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingShopRequests, setPendingShopRequests] = useState<PendingShopRequest[]>([]);
+  const [pendingMissionProposals, setPendingMissionProposals] = useState<PendingMissionProposal[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [direction, setDirection] = useState<'give' | 'take'>('give');
@@ -135,6 +146,7 @@ export default function ParentPage() {
   const [newMissionEmoji, setNewMissionEmoji] = useState<string>('🎯');
   const [approveRewardInputs, setApproveRewardInputs] = useState<Record<string, number>>({});
   const [shopApprovePriceInputs, setShopApprovePriceInputs] = useState<Record<string, number>>({});
+  const [missionProposalRewardInputs, setMissionProposalRewardInputs] = useState<Record<string, number>>({});
 
   const [reason, setReason] = useState<string>('');
   const [amount, setAmount] = useState<number>(1);
@@ -158,6 +170,7 @@ export default function ParentPage() {
         if (data.missions) setMissions(data.missions as Mission[]);
         if (data.pendingRequests) setPendingRequests(data.pendingRequests as PendingRequest[]);
         if (data.pendingShopRequests) setPendingShopRequests(data.pendingShopRequests as PendingShopRequest[]);
+        if (data.pendingMissionProposals) setPendingMissionProposals(data.pendingMissionProposals as PendingMissionProposal[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -393,10 +406,15 @@ export default function ParentPage() {
       setPendingRequests(pendingRequests.filter((r) => r.id !== request.id));
       setBalance(balance + ((result as any).reward || 0));
       playChime();
-      setToast(`+${(result as any).reward} 하트를 승인했어요! 💖`);
+      setToast(
+        (result as any).addedToMissionList
+          ? `+${(result as any).reward} 하트를 승인하고, 미션 목록에도 추가했어요! 💖`
+          : `+${(result as any).reward} 하트를 승인했어요! 💖`
+      );
 
       const data = await getParentData();
       if (data.child) setBalance((data.child as any).balance);
+      if (data.missions) setMissions(data.missions as Mission[]);
     } catch (error) {
       setToast(error instanceof Error ? error.message : '오류가 발생했어요');
       console.error(error);
@@ -461,6 +479,46 @@ export default function ParentPage() {
     }
   };
 
+  const handleApproveMissionProposal = async (request: PendingMissionProposal) => {
+    const finalReward = missionProposalRewardInputs[request.id] ?? request.requested_reward;
+    if (!finalReward || finalReward < 1) {
+      setToast('하트 개수를 입력해주세요');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await approveMissionProposal(request.id, finalReward);
+      setPendingMissionProposals(pendingMissionProposals.filter((r) => r.id !== request.id));
+      playChime();
+      setToast('미션 목록에 새 미션을 추가했어요! 🎯');
+
+      const data = await getParentData();
+      if (data.missions) setMissions(data.missions as Mission[]);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRejectMissionProposal = async (requestId: string) => {
+    if (!window.confirm('이 제안을 거절할까요?')) return;
+    try {
+      setIsLoading(true);
+      await rejectMissionProposal(requestId);
+      setPendingMissionProposals(pendingMissionProposals.filter((r) => r.id !== requestId));
+      playSoftDown();
+      setToast('제안을 거절했어요');
+    } catch (error) {
+      setToast('오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleUpdatePin = async () => {
     if (newChildPin.length !== 4) {
       setToast('비밀번호는 4자리여야 해요');
@@ -502,7 +560,8 @@ export default function ParentPage() {
   const handlePreviewChild = () => router.push('/child?preview=parent');
 
   const tabsWithBadge = TABS.map((t) => {
-    if (t.id === 'missions' && pendingRequests.length > 0) return { ...t, badge: pendingRequests.length };
+    const missionBadge = pendingRequests.length + pendingMissionProposals.length;
+    if (t.id === 'missions' && missionBadge > 0) return { ...t, badge: missionBadge };
     if (t.id === 'shop' && pendingShopRequests.length > 0) return { ...t, badge: pendingShopRequests.length };
     return t;
   });
@@ -775,6 +834,55 @@ export default function ParentPage() {
           </div>,
 
           <div key="missions" className="space-y-5">
+            {pendingMissionProposals.length > 0 && (
+              <div className="rounded-2xl bg-white shadow-sm border border-pink-200 overflow-hidden">
+                <p className="text-[13px] font-semibold text-pink-500 px-4 pt-4 pb-2">
+                  🔔 아이가 미션을 제안했어요 ({pendingMissionProposals.length})
+                </p>
+                {pendingMissionProposals.map((req, idx) => (
+                  <div
+                    key={req.id}
+                    className={`px-4 py-3.5 ${idx !== pendingMissionProposals.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">
+                        {req.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[15px] text-[#1c1c1e]">{req.name}</p>
+                        <p className="text-[12px] text-[#8e8e93]">
+                          {new Date(req.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          <span className="ml-1.5 font-semibold text-pink-500">· 제안: {req.requested_reward} 💖</span>
+                        </p>
+                        <div className="mt-2">
+                          <NumberStepper
+                            value={missionProposalRewardInputs[req.id] ?? req.requested_reward}
+                            onChange={(v) => setMissionProposalRewardInputs({ ...missionProposalRewardInputs, [req.id]: v })}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                          <button
+                            onClick={() => handleApproveMissionProposal(req)}
+                            disabled={isLoading}
+                            className="py-2.5 bg-pink-500 text-white font-semibold text-[13px] rounded-lg active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            승인 💖
+                          </button>
+                          <button
+                            onClick={() => handleRejectMissionProposal(req.id)}
+                            disabled={isLoading}
+                            className="py-2.5 bg-black/5 text-[#8e8e93] font-semibold text-[13px] rounded-lg active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            거절
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {pendingRequests.length > 0 && (
               <div className="rounded-2xl bg-white shadow-sm border border-pink-200 overflow-hidden">
                 <p className="text-[13px] font-semibold text-pink-500 px-4 pt-4 pb-2">

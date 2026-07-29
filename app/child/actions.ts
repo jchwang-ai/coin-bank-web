@@ -5,7 +5,7 @@ import { logActivity } from '@/lib/activity';
 
 export async function getChildData() {
   try {
-    const [child, shops, coupons, transactions, missions, pendingRequests, myRequests, myShopRequests] = await Promise.all([
+    const [child, shops, coupons, transactions, missions, pendingRequests, myRequests, myShopRequests, myMissionProposals] = await Promise.all([
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price, sort_order FROM shop_items ORDER BY sort_order NULLS LAST, created_at`,
       sql`
@@ -35,6 +35,12 @@ export async function getChildData() {
         ORDER BY requested_at DESC
         LIMIT 20
       `,
+      sql`
+        SELECT id, emoji, name, requested_reward, final_reward, status, requested_at
+        FROM mission_proposals
+        ORDER BY requested_at DESC
+        LIMIT 20
+      `,
     ]);
 
     return {
@@ -46,6 +52,7 @@ export async function getChildData() {
       pendingMissionIds: pendingRequests.rows.map((r: any) => r.mission_id),
       myRequests: myRequests.rows,
       myShopRequests: myShopRequests.rows,
+      myMissionProposals: myMissionProposals.rows,
     };
   } catch (error) {
     console.error('Error fetching child data:', error);
@@ -116,6 +123,27 @@ export async function proposeShopItem(emoji: string, name: string, requestedPric
     return { success: true };
   } catch (error) {
     console.error('Error proposing shop item:', error);
+    throw error;
+  }
+}
+
+export async function proposeMission(emoji: string, name: string, requestedReward: number) {
+  try {
+    if (!name.trim()) {
+      throw new Error('미션 이름을 적어주세요');
+    }
+    if (!requestedReward || requestedReward < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
+
+    await sql`
+      INSERT INTO mission_proposals (emoji, name, requested_reward)
+      VALUES (${emoji}, ${name.trim()}, ${requestedReward})
+    `;
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error proposing mission:', error);
     throw error;
   }
 }

@@ -9,6 +9,7 @@ import SwipeableViews from '@/components/SwipeableViews';
 import EmojiBurst from '@/components/EmojiBurst';
 import MissionRequestSheet from '@/components/MissionRequestSheet';
 import ShopItemProposalSheet from '@/components/ShopItemProposalSheet';
+import MissionProposalSheet from '@/components/MissionProposalSheet';
 import ReorderableList from '@/components/ReorderableList';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSend } from '@/lib/sound';
@@ -20,6 +21,7 @@ import {
   requestMission,
   requestCustomMission,
   proposeShopItem,
+  proposeMission,
   reorderShopItems,
   reorderMissions,
 } from './actions';
@@ -89,6 +91,16 @@ interface MyShopRequest {
   requested_at: string;
 }
 
+interface MyMissionProposal {
+  id: string;
+  emoji: string;
+  name: string;
+  requested_reward: number;
+  final_reward: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  requested_at: string;
+}
+
 function ChildContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,11 +118,13 @@ function ChildContent() {
   const [pendingMissionIds, setPendingMissionIds] = useState<string[]>([]);
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   const [myShopRequests, setMyShopRequests] = useState<MyShopRequest[]>([]);
+  const [myMissionProposals, setMyMissionProposals] = useState<MyMissionProposal[]>([]);
   const [toast, setToast] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMission, setSheetMission] = useState<Mission | undefined>(undefined);
   const [shopProposalOpen, setShopProposalOpen] = useState(false);
+  const [missionProposalOpen, setMissionProposalOpen] = useState(false);
 
   const [burstEmojis, setBurstEmojis] = useState<string[]>(['💖', '✨', '🎉']);
   const [burstTrigger, setBurstTrigger] = useState(0);
@@ -142,6 +156,7 @@ function ChildContent() {
         if (data.pendingMissionIds) setPendingMissionIds(data.pendingMissionIds as string[]);
         if (data.myRequests) setMyRequests(data.myRequests as MyRequest[]);
         if (data.myShopRequests) setMyShopRequests(data.myShopRequests as MyShopRequest[]);
+        if (data.myMissionProposals) setMyMissionProposals(data.myMissionProposals as MyMissionProposal[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -270,6 +285,18 @@ function ChildContent() {
 
     const refreshed = await getChildData();
     if (refreshed.myShopRequests) setMyShopRequests(refreshed.myShopRequests as MyShopRequest[]);
+  };
+
+  const handleProposeMission = async (data: { emoji: string; name: string; reward: number }) => {
+    await proposeMission(data.emoji, data.name, data.reward);
+    setMissionProposalOpen(false);
+    setBurstEmojis(['✨', '💌', '🎯']);
+    setBurstTrigger((t) => t + 1);
+    playSend();
+    setToast('제안을 보냈어요! 부모님을 기다려주세요 💌');
+
+    const refreshed = await getChildData();
+    if (refreshed.myMissionProposals) setMyMissionProposals(refreshed.myMissionProposals as MyMissionProposal[]);
   };
 
   const handleExit = () => {
@@ -448,6 +475,39 @@ function ChildContent() {
               ✨ 다른 걸 했어요! 직접 요청하기
             </button>
 
+            <button
+              onClick={() => setMissionProposalOpen(true)}
+              className="w-full py-3.5 rounded-2xl border-2 border-dashed border-purple-200 text-purple-500 font-semibold text-[14px] active:bg-purple-50 transition-colors"
+            >
+              🎯 새 미션 만들어달라고 하기
+            </button>
+
+            {myMissionProposals.length > 0 && (
+              <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
+                <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">내가 제안한 미션</p>
+                {myMissionProposals.map((req, idx) => (
+                  <div
+                    key={req.id}
+                    className={`flex items-center gap-3 px-4 py-3 ${idx !== myMissionProposals.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                  >
+                    <span className="text-lg shrink-0">{req.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
+                      <p className="text-[12px] text-[#8e8e93]">
+                        {new Date(req.requested_at).toLocaleDateString('ko-KR')}
+                        {req.status === 'approved' && req.final_reward !== null && (
+                          <span className="ml-1.5 font-semibold text-green-600">{req.final_reward} 💖</span>
+                        )}
+                      </p>
+                    </div>
+                    <span className="text-[12px] font-medium text-[#8e8e93] shrink-0">
+                      {req.status === 'pending' ? '⏳ 기다리는 중' : req.status === 'approved' ? '✅ 승인됐어요' : '❌ 거절됐어요'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {myRequests.length > 0 && (
               <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
                 <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">내 요청 기록</p>
@@ -547,6 +607,13 @@ function ChildContent() {
         <ShopItemProposalSheet
           onClose={() => setShopProposalOpen(false)}
           onSubmit={handleProposeShopItem}
+        />
+      )}
+
+      {missionProposalOpen && (
+        <MissionProposalSheet
+          onClose={() => setMissionProposalOpen(false)}
+          onSubmit={handleProposeMission}
         />
       )}
     </div>

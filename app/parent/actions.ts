@@ -5,7 +5,7 @@ import { logActivity } from '@/lib/activity';
 
 export async function getParentData() {
   try {
-    const [child, shops, transactions, missions, pendingRequests, pendingShopRequests] = await Promise.all([
+    const [child, shops, transactions, missions, pendingRequests, pendingShopRequests, pendingMissionProposals] = await Promise.all([
       sql`SELECT id, balance, name, photo_data FROM child_account LIMIT 1`,
       sql`SELECT id, emoji, name, price, sort_order FROM shop_items ORDER BY sort_order NULLS LAST, created_at`,
       sql`SELECT type, amount, description, created_at FROM transactions ORDER BY created_at DESC LIMIT 50`,
@@ -22,6 +22,12 @@ export async function getParentData() {
         WHERE status = 'pending'
         ORDER BY requested_at ASC
       `,
+      sql`
+        SELECT id, emoji, name, requested_reward, requested_at
+        FROM mission_proposals
+        WHERE status = 'pending'
+        ORDER BY requested_at ASC
+      `,
     ]);
 
     return {
@@ -31,6 +37,7 @@ export async function getParentData() {
       missions: missions.rows,
       pendingRequests: pendingRequests.rows,
       pendingShopRequests: pendingShopRequests.rows,
+      pendingMissionProposals: pendingMissionProposals.rows,
     };
   } catch (error) {
     console.error('Error fetching parent data:', error);
@@ -216,12 +223,12 @@ export async function deleteMission(id: string) {
 export async function approveMissionRequest(requestId: string, overrideReward?: number) {
   try {
     const request = await sql`
-      SELECT reward, name, status FROM mission_requests WHERE id = ${requestId}
+      SELECT mission_id, is_custom, emoji, reward, name, status FROM mission_requests WHERE id = ${requestId}
     `;
     if (!request.rows.length) {
       throw new Error('요청을 찾을 수 없습니다');
     }
-    const { reward, name, status } = request.rows[0] as any;
+    const { mission_id, is_custom, emoji, reward, name, status } = request.rows[0] as any;
     if (status !== 'pending') {
       throw new Error('이미 처리된 요청입니다');
     }
@@ -248,7 +255,25 @@ export async function approveMissionRequest(requestId: string, overrideReward?: 
       WHERE id = ${requestId}
     `;
 
-    return { success: true, reward: finalReward };
+    // A custom (free-text) request has no linked mission — add it to the
+    // mission list so the same task can be picked next time instead of
+    // retyped, unless a mission with that name already exists.
+    let addedToMissionList = false;
+    if (is_custom && !mission_id) {
+      const existing = await sql`SELECT id FROM missions WHERE LOWER(name) = LOWER(${name})`;
+      if (!existing.rows.length) {
+        const maxOrder = await sql`SELECT COALESCE(MAX(sort_order), -1) as max_order FROM missions`;
+        const nextOrder = (maxOrder.rows[0] as any).max_order + 1;
+        await sql`
+          INSERT INTO missions (emoji, name, reward, sort_order)
+          VALUES (${emoji}, ${name}, ${finalReward}, ${nextOrder})
+        `;
+        await logActivity('parent', '미션 자동 추가', `${emoji} ${name} (${finalReward}💖)`);
+        addedToMissionList = true;
+      }
+    }
+
+    return { success: true, reward: finalReward, addedToMissionList };
   } catch (error) {
     console.error('Error approving mission request:', error);
     throw error;
@@ -317,6 +342,60 @@ export async function rejectShopItemRequest(requestId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error rejecting shop item request:', error);
+    throw error;
+  }
+}
+
+export async function approveMissionProposal(requestId: string, finalReward: number) {
+  try {
+    if (!finalReward || finalReward < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
+
+    const request = await sql`
+      SELECT emoji, name, status FROM mission_proposals WHERE id = ${requestId}
+    `;
+    if (!request.rows.length) {
+      throw new Error('요청을 찾을 수 없습니다');
+    }
+    const { emoji, name, status } = request.rows[0] as any;
+    if (status !== 'pending') {
+      throw new Error('이미 처리된 요청입니다');
+    }
+
+    const maxOrder = await sql`SELECT COALESCE(MAX(sort_order), -1) as max_order FROM missions`;
+    const nextOrder = (maxOrder.rows[0] as any).max_order + 1;
+
+    await sql`
+      INSERT INTO missions (emoji, name, reward, sort_order)
+      VALUES (${emoji}, ${name}, ${finalReward}, ${nextOrder})
+    `;
+
+    await sql`
+      UPDATE mission_proposals
+      SET status = 'approved', final_reward = ${finalReward}, resolved_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId}
+    `;
+
+    await logActivity('parent', '미션 추가', `${emoji} ${name} (${finalReward}💖) - 아이 제안`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error approving mission proposal:', error);
+    throw error;
+  }
+}
+
+export async function rejectMissionProposal(requestId: string) {
+  try {
+    await sql`
+      UPDATE mission_proposals
+      SET status = 'rejected', resolved_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId} AND status = 'pending'
+    `;
+    return { success: true };
+  } catch (error) {
+    console.error('Error rejecting mission proposal:', error);
     throw error;
   }
 }

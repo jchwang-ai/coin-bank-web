@@ -150,6 +150,20 @@ export async function initializeDatabase() {
     await sql`ALTER TABLE mission_requests ADD COLUMN IF NOT EXISTS photo_data TEXT`;
     await sql`ALTER TABLE mission_requests ALTER COLUMN reward DROP NOT NULL`;
 
+    // mission_proposals table (child-proposed new missions awaiting parent approval)
+    await sql`
+      CREATE TABLE IF NOT EXISTS mission_proposals (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        emoji VARCHAR(50) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        requested_reward INTEGER NOT NULL,
+        final_reward INTEGER,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP WITH TIME ZONE
+      );
+    `;
+
     // activity_logs table (change history: name/pin/photo changes, shop &
     // mission CRUD, reordering — separate from access_logs which is just
     // login sessions, and from transactions which is heart movements)
@@ -170,7 +184,16 @@ export async function initializeDatabase() {
   }
 }
 
-// Seed initial data
+// Bootstrap the parent/child accounts if they don't exist yet.
+//
+// IMPORTANT: this must NEVER re-seed shop_items or missions with default
+// starter content. This app has real users now — a parent legitimately
+// clearing out their shop/mission list (e.g. to rebuild it from scratch)
+// looks identical to "table is empty on a fresh install", and this
+// function runs on every deploy via /api/init-db. Seeding default rows
+// whenever those tables are empty silently overwrote a family's real,
+// intentional cleanup once already. If shop_items/missions are empty,
+// leave them empty — the parent will re-add items through the UI.
 export async function seedDatabase() {
   try {
     // Check if parent_config already exists
@@ -191,44 +214,6 @@ export async function seedDatabase() {
         INSERT INTO child_account (pin, balance)
         VALUES (${hashedPin}, 0)
       `;
-    }
-
-    // Check if shop_items already exist
-    const shopExists = await sql`SELECT * FROM shop_items LIMIT 1`;
-    if (shopExists.rows.length === 0) {
-      const defaultItems = [
-        { emoji: '📺', name: '유튜브 30분 보기', price: 5 },
-        { emoji: '🍦', name: '아이스크림 사먹기', price: 7 },
-        { emoji: '🎮', name: '게임 30분 하기', price: 8 },
-        { emoji: '😴', name: '주말 늦잠 자기', price: 10 },
-        { emoji: '🍕', name: '저녁 메뉴 정하기', price: 12 },
-        { emoji: '🎡', name: '주말 나들이 가기', price: 30 },
-      ];
-
-      for (const item of defaultItems) {
-        await sql`
-          INSERT INTO shop_items (emoji, name, price)
-          VALUES (${item.emoji}, ${item.name}, ${item.price})
-        `;
-      }
-    }
-
-    // Check if missions already exist
-    const missionsExist = await sql`SELECT * FROM missions LIMIT 1`;
-    if (missionsExist.rows.length === 0) {
-      const defaultMissions = [
-        { emoji: '🛏️', name: '이불 정리하기', reward: 2 },
-        { emoji: '📚', name: '책 30분 읽기', reward: 3 },
-        { emoji: '🦷', name: '양치 꼼꼼히 하기', reward: 1 },
-        { emoji: '🧹', name: '내 방 청소하기', reward: 4 },
-      ];
-
-      for (const mission of defaultMissions) {
-        await sql`
-          INSERT INTO missions (emoji, name, reward)
-          VALUES (${mission.emoji}, ${mission.name}, ${mission.reward})
-        `;
-      }
     }
 
     console.log('✓ Database seeded successfully');
