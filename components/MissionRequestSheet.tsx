@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import EmojiPicker from './EmojiPicker';
 
 interface MissionInfo {
   id: string;
@@ -12,7 +13,7 @@ interface MissionInfo {
 interface MissionRequestSheetProps {
   mission?: MissionInfo; // omit for a custom (free-text) request
   onClose: () => void;
-  onSubmit: (data: { missionId?: string; description?: string; photoData: string | null }) => Promise<void>;
+  onSubmit: (data: { missionId?: string; description?: string; emoji?: string; photoData: string | null }) => Promise<void>;
 }
 
 function resizeImageToMaxDimension(file: File, maxDim = 640): Promise<string> {
@@ -43,6 +44,7 @@ function resizeImageToMaxDimension(file: File, maxDim = 640): Promise<string> {
 export default function MissionRequestSheet({ mission, onClose, onSubmit }: MissionRequestSheetProps) {
   const isCustom = !mission;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [emoji, setEmoji] = useState('✨');
   const [description, setDescription] = useState('');
   const [photoData, setPhotoData] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -75,6 +77,7 @@ export default function MissionRequestSheet({ mission, onClose, onSubmit }: Miss
       await onSubmit({
         missionId: mission?.id,
         description: isCustom ? description.trim() : undefined,
+        emoji: isCustom ? emoji : undefined,
         photoData,
       });
     } catch (err) {
@@ -93,13 +96,16 @@ export default function MissionRequestSheet({ mission, onClose, onSubmit }: Miss
           <>
             <p className="text-[17px] font-bold text-[#1c1c1e] mb-1">✨ 직접 요청하기</p>
             <p className="text-[13px] text-[#8e8e93] mb-4">무엇을 했는지 부모님께 알려주세요</p>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="예: 동생이랑 안 싸우고 사이좋게 놀았어요"
-              rows={3}
-              className="w-full px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] mb-1 focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
-            />
+            <div className="flex items-center gap-2 mb-1">
+              <EmojiPicker value={emoji} onChange={setEmoji} />
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="예: 동생이랑 안 싸우고 사이좋게 놀았어요"
+                rows={3}
+                className="flex-1 min-w-0 px-4 py-3 bg-black/[0.03] rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
+              />
+            </div>
           </>
         ) : (
           <div className="flex items-center gap-3 mb-4">

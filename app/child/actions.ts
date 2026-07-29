@@ -81,7 +81,7 @@ export async function requestMission(missionId: string, photoData?: string | nul
   }
 }
 
-export async function requestCustomMission(description: string, photoData?: string | null) {
+export async function requestCustomMission(description: string, photoData?: string | null, emoji?: string) {
   try {
     if (!description.trim()) {
       throw new Error('무엇을 했는지 적어주세요');
@@ -89,7 +89,7 @@ export async function requestCustomMission(description: string, photoData?: stri
 
     await sql`
       INSERT INTO mission_requests (mission_id, is_custom, emoji, name, reward, photo_data)
-      VALUES (NULL, TRUE, '✨', ${description.trim()}, NULL, ${photoData || null})
+      VALUES (NULL, TRUE, ${emoji || '✨'}, ${description.trim()}, NULL, ${photoData || null})
     `;
 
     return { success: true };

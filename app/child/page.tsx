@@ -223,11 +223,11 @@ function ChildContent() {
     setSheetOpen(true);
   };
 
-  const handleSheetSubmit = async (data: { missionId?: string; description?: string; photoData: string | null }) => {
+  const handleSheetSubmit = async (data: { missionId?: string; description?: string; emoji?: string; photoData: string | null }) => {
     if (data.missionId) {
       await requestMission(data.missionId, data.photoData);
     } else {
-      await requestCustomMission(data.description || '', data.photoData);
+      await requestCustomMission(data.description || '', data.photoData, data.emoji);
     }
 
     setSheetOpen(false);
