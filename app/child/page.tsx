@@ -11,6 +11,7 @@ import MissionRequestSheet from '@/components/MissionRequestSheet';
 import ShopItemProposalSheet from '@/components/ShopItemProposalSheet';
 import MissionProposalSheet from '@/components/MissionProposalSheet';
 import ReorderableList from '@/components/ReorderableList';
+import HeartHistorySheet from '@/components/HeartHistorySheet';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSend } from '@/lib/sound';
 import {
@@ -125,6 +126,7 @@ function ChildContent() {
   const [sheetMission, setSheetMission] = useState<Mission | undefined>(undefined);
   const [shopProposalOpen, setShopProposalOpen] = useState(false);
   const [missionProposalOpen, setMissionProposalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const [burstEmojis, setBurstEmojis] = useState<string[]>(['💖', '✨', '🎉']);
   const [burstTrigger, setBurstTrigger] = useState(0);
@@ -343,14 +345,18 @@ function ChildContent() {
 
         {/* Balance Hero Card */}
         <div className="relative">
-          <div className="rounded-3xl p-6 bg-gradient-to-br from-pink-400 via-rose-400 to-fuchsia-500 shadow-lg shadow-pink-500/25 relative overflow-hidden">
+          <button
+            onClick={() => setHistoryOpen(true)}
+            className="w-full text-left rounded-3xl p-6 bg-gradient-to-br from-pink-400 via-rose-400 to-fuchsia-500 shadow-lg shadow-pink-500/25 relative overflow-hidden active:scale-[0.98] transition-transform"
+          >
             <div className="absolute -right-6 -top-6 text-8xl opacity-20">💖</div>
             <p className="text-white/80 text-[13px] font-medium relative">내가 모은 하트</p>
             <p className="text-white text-[44px] font-bold leading-tight mt-1 relative">
               {balance}
               <span className="text-2xl ml-2">💖</span>
             </p>
-          </div>
+            <p className="text-white/70 text-[12px] font-medium relative mt-1">눌러서 하트 내역 보기 →</p>
+          </button>
           <EmojiBurst trigger={burstTrigger} emojis={burstEmojis} />
         </div>
       </div>
@@ -614,6 +620,14 @@ function ChildContent() {
         <MissionProposalSheet
           onClose={() => setMissionProposalOpen(false)}
           onSubmit={handleProposeMission}
+        />
+      )}
+
+      {historyOpen && (
+        <HeartHistorySheet
+          childName={childName}
+          transactions={transactions}
+          onClose={() => setHistoryOpen(false)}
         />
       )}
     </div>

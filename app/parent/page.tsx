@@ -9,6 +9,7 @@ import SwipeableViews from '@/components/SwipeableViews';
 import EmojiPicker from '@/components/EmojiPicker';
 import NumberStepper from '@/components/NumberStepper';
 import ReorderableList from '@/components/ReorderableList';
+import HeartHistorySheet from '@/components/HeartHistorySheet';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playSoftDown } from '@/lib/sound';
 import {
@@ -88,6 +89,13 @@ interface PendingMissionProposal {
   requested_at: string;
 }
 
+interface Transaction {
+  type: string;
+  amount: number;
+  description: string;
+  created_at: string;
+}
+
 interface AccessLog {
   role: string;
   user_agent: string;
@@ -125,6 +133,8 @@ export default function ParentPage() {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingShopRequests, setPendingShopRequests] = useState<PendingShopRequest[]>([]);
   const [pendingMissionProposals, setPendingMissionProposals] = useState<PendingMissionProposal[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [direction, setDirection] = useState<'give' | 'take'>('give');
@@ -171,6 +181,7 @@ export default function ParentPage() {
         if (data.pendingRequests) setPendingRequests(data.pendingRequests as PendingRequest[]);
         if (data.pendingShopRequests) setPendingShopRequests(data.pendingShopRequests as PendingShopRequest[]);
         if (data.pendingMissionProposals) setPendingMissionProposals(data.pendingMissionProposals as PendingMissionProposal[]);
+        if (data.transactions) setTransactions(data.transactions as Transaction[]);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -592,14 +603,18 @@ export default function ParentPage() {
         </div>
 
         {/* Balance Hero Card */}
-        <div className="rounded-3xl p-6 bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-lg shadow-purple-500/25 relative overflow-hidden">
+        <button
+          onClick={() => setHistoryOpen(true)}
+          className="w-full text-left rounded-3xl p-6 bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-lg shadow-purple-500/25 relative overflow-hidden active:scale-[0.98] transition-transform"
+        >
           <div className="absolute -right-6 -top-6 text-8xl opacity-20">💖</div>
           <p className="text-white/80 text-[13px] font-medium relative">{childName}의 하트</p>
           <p className="text-white text-[44px] font-bold leading-tight mt-1 relative">
             {balance}
             <span className="text-2xl ml-2">💖</span>
           </p>
-        </div>
+          <p className="text-white/70 text-[12px] font-medium relative mt-1">눌러서 하트 내역 보기 →</p>
+        </button>
       </div>
 
       {/* Content */}
@@ -1186,6 +1201,14 @@ export default function ParentPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={viewingPhoto} alt="첨부 사진 크게 보기" className="max-w-full max-h-full rounded-2xl" />
         </div>
+      )}
+
+      {historyOpen && (
+        <HeartHistorySheet
+          childName={childName}
+          transactions={transactions}
+          onClose={() => setHistoryOpen(false)}
+        />
       )}
     </div>
   );
