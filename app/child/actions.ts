@@ -24,19 +24,19 @@ export async function getChildData() {
       sql`SELECT id, emoji, name, reward, sort_order FROM missions ORDER BY sort_order NULLS LAST, created_at`,
       sql`SELECT mission_id, status FROM mission_requests WHERE status = 'pending'`,
       sql`
-        SELECT id, emoji, name, reward, status, is_custom, requested_at
+        SELECT id, emoji, name, reward, status, is_custom, requested_at, resolved_at
         FROM mission_requests
         ORDER BY requested_at DESC
         LIMIT 20
       `,
       sql`
-        SELECT id, emoji, name, requested_price, final_price, status, requested_at
+        SELECT id, emoji, name, requested_price, final_price, status, requested_at, resolved_at
         FROM shop_item_requests
         ORDER BY requested_at DESC
         LIMIT 20
       `,
       sql`
-        SELECT id, emoji, name, requested_reward, final_reward, status, requested_at
+        SELECT id, emoji, name, requested_reward, final_reward, status, requested_at, resolved_at
         FROM mission_proposals
         ORDER BY requested_at DESC
         LIMIT 20

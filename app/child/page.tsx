@@ -74,6 +74,7 @@ interface MyRequest {
   status: 'pending' | 'approved' | 'rejected';
   is_custom: boolean;
   requested_at: string;
+  resolved_at: string | null;
 }
 
 const STATUS_LABEL: Record<MyRequest['status'], string> = {
@@ -90,6 +91,7 @@ interface MyShopRequest {
   final_price: number | null;
   status: 'pending' | 'approved' | 'rejected';
   requested_at: string;
+  resolved_at: string | null;
 }
 
 interface MyMissionProposal {
@@ -100,6 +102,16 @@ interface MyMissionProposal {
   final_reward: number | null;
   status: 'pending' | 'approved' | 'rejected';
   requested_at: string;
+  resolved_at: string | null;
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function ChildContent() {
@@ -422,7 +434,10 @@ function ChildContent() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
                       <p className="text-[12px] text-[#8e8e93]">
-                        {new Date(req.requested_at).toLocaleDateString('ko-KR')}
+                        제안: {formatDateTime(req.requested_at)}
+                        {req.resolved_at && (
+                          <> · {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}</>
+                        )}
                         {req.status === 'approved' && req.final_price !== null && (
                           <span className="ml-1.5 font-semibold text-green-600">{req.final_price} 💖</span>
                         )}
@@ -500,7 +515,10 @@ function ChildContent() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
                       <p className="text-[12px] text-[#8e8e93]">
-                        {new Date(req.requested_at).toLocaleDateString('ko-KR')}
+                        제안: {formatDateTime(req.requested_at)}
+                        {req.resolved_at && (
+                          <> · {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}</>
+                        )}
                         {req.status === 'approved' && req.final_reward !== null && (
                           <span className="ml-1.5 font-semibold text-green-600">{req.final_reward} 💖</span>
                         )}
@@ -526,7 +544,10 @@ function ChildContent() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
                       <p className="text-[12px] text-[#8e8e93]">
-                        {new Date(req.requested_at).toLocaleDateString('ko-KR')}
+                        요청: {formatDateTime(req.requested_at)}
+                        {req.resolved_at && (
+                          <> · {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}</>
+                        )}
                         {req.status === 'approved' && req.reward !== null && (
                           <span className="ml-1.5 font-semibold text-green-600">+{req.reward} 💖</span>
                         )}
