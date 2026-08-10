@@ -52,15 +52,15 @@ export default function HeartHistorySheet({ childName, transactions, onClose }: 
                   <span className="text-xl shrink-0">{iconFor(tx)}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{tx.description || '하트 변경'}</p>
-                    <p className="text-[12px] text-[#8e8e93]">
-                      {tx.request_date ? (
-                        <>
-                          요청: {formatDateTime(tx.request_date)} · 승인: {formatDateTime(tx.created_at)}
-                        </>
-                      ) : (
-                        formatDateTime(tx.created_at)
-                      )}
-                    </p>
+                    {tx.request_date ? (
+                      <p className="text-[12px] text-[#8e8e93] leading-snug">
+                        요청: {formatDateTime(tx.request_date)}
+                        <br />
+                        승인: {formatDateTime(tx.created_at)}
+                      </p>
+                    ) : (
+                      <p className="text-[12px] text-[#8e8e93]">{formatDateTime(tx.created_at)}</p>
+                    )}
                   </div>
                   <p
                     className={`font-bold text-[15px] shrink-0 ${

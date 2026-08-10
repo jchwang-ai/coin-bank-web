@@ -433,10 +433,13 @@ function ChildContent() {
                     <span className="text-lg shrink-0">{req.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
-                      <p className="text-[12px] text-[#8e8e93]">
+                      <p className="text-[12px] text-[#8e8e93] leading-snug">
                         제안: {formatDateTime(req.requested_at)}
                         {req.resolved_at && (
-                          <> · {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}</>
+                          <>
+                            <br />
+                            {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}
+                          </>
                         )}
                         {req.status === 'approved' && req.final_price !== null && (
                           <span className="ml-1.5 font-semibold text-green-600">{req.final_price} 💖</span>
@@ -514,10 +517,13 @@ function ChildContent() {
                     <span className="text-lg shrink-0">{req.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
-                      <p className="text-[12px] text-[#8e8e93]">
+                      <p className="text-[12px] text-[#8e8e93] leading-snug">
                         제안: {formatDateTime(req.requested_at)}
                         {req.resolved_at && (
-                          <> · {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}</>
+                          <>
+                            <br />
+                            {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}
+                          </>
                         )}
                         {req.status === 'approved' && req.final_reward !== null && (
                           <span className="ml-1.5 font-semibold text-green-600">{req.final_reward} 💖</span>
@@ -543,10 +549,13 @@ function ChildContent() {
                     <span className="text-lg shrink-0">{req.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
-                      <p className="text-[12px] text-[#8e8e93]">
+                      <p className="text-[12px] text-[#8e8e93] leading-snug">
                         요청: {formatDateTime(req.requested_at)}
                         {req.resolved_at && (
-                          <> · {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}</>
+                          <>
+                            <br />
+                            {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}
+                          </>
                         )}
                         {req.status === 'approved' && req.reward !== null && (
                           <span className="ml-1.5 font-semibold text-green-600">+{req.reward} 💖</span>
