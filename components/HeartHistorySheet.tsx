@@ -5,6 +5,16 @@ interface Transaction {
   amount: number;
   description: string;
   created_at: string;
+  request_date?: string | null;
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 interface HeartHistorySheetProps {
@@ -43,13 +53,13 @@ export default function HeartHistorySheet({ childName, transactions, onClose }: 
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[15px] text-[#1c1c1e] truncate">{tx.description || '하트 변경'}</p>
                     <p className="text-[12px] text-[#8e8e93]">
-                      {new Date(tx.created_at).toLocaleString('ko-KR', {
-                        year: 'numeric',
-                        month: 'numeric',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {tx.request_date ? (
+                        <>
+                          요청: {formatDateTime(tx.request_date)} · 승인: {formatDateTime(tx.created_at)}
+                        </>
+                      ) : (
+                        formatDateTime(tx.created_at)
+                      )}
                     </p>
                   </div>
                   <p

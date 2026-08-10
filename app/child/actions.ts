@@ -16,9 +16,18 @@ export async function getChildData() {
         ORDER BY c.purchased_at DESC
       `,
       sql`
-        SELECT type, amount, description, created_at
-        FROM transactions
-        ORDER BY created_at DESC
+        SELECT t.type, t.amount, t.description, t.created_at, m.requested_at AS request_date
+        FROM transactions t
+        LEFT JOIN LATERAL (
+          SELECT mr.requested_at
+          FROM mission_requests mr
+          WHERE mr.status = 'approved'
+            AND t.description LIKE '미션 완료: %'
+            AND mr.name = substring(t.description FROM 8)
+          ORDER BY ABS(EXTRACT(EPOCH FROM (COALESCE(mr.resolved_at, mr.requested_at) - t.created_at)))
+          LIMIT 1
+        ) m ON true
+        ORDER BY t.created_at DESC
         LIMIT 50
       `,
       sql`SELECT id, emoji, name, reward, sort_order FROM missions ORDER BY sort_order NULLS LAST, created_at`,
