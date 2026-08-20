@@ -27,6 +27,8 @@ import {
   proposeMission,
   updateMissionProposal,
   deleteMissionProposal,
+  updateMissionRequest,
+  deleteMissionRequest,
   reorderShopItems,
   reorderMissions,
 } from './actions';
@@ -148,6 +150,10 @@ function ChildContent() {
   const [editProposalEmoji, setEditProposalEmoji] = useState<string>('🎯');
   const [editProposalName, setEditProposalName] = useState<string>('');
   const [editProposalReward, setEditProposalReward] = useState<number>(1);
+
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
+  const [editRequestEmoji, setEditRequestEmoji] = useState<string>('✨');
+  const [editRequestName, setEditRequestName] = useState<string>('');
 
   const [burstEmojis, setBurstEmojis] = useState<string[]>(['💖', '✨', '🎉']);
   const [burstTrigger, setBurstTrigger] = useState(0);
@@ -362,6 +368,52 @@ function ChildContent() {
       setMyMissionProposals(myMissionProposals.filter((r) => r.id !== id));
       playSoftDown();
       setToast('제안을 취소했어요');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startEditRequest = (req: MyRequest) => {
+    setEditingRequestId(req.id);
+    setEditRequestEmoji(req.emoji);
+    setEditRequestName(req.name);
+  };
+
+  const handleSaveEditRequest = async (id: string) => {
+    if (!editRequestName.trim()) {
+      setToast('무엇을 했는지 적어주세요');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      await updateMissionRequest(id, editRequestEmoji, editRequestName.trim());
+      setMyRequests(
+        myRequests.map((r) => (r.id === id ? { ...r, emoji: editRequestEmoji, name: editRequestName.trim() } : r))
+      );
+      setEditingRequestId(null);
+      setToast('요청을 수정했어요! ✏️');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '오류가 발생했어요');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteRequest = async (id: string) => {
+    if (!window.confirm('이 요청을 취소할까요?')) return;
+    try {
+      setIsLoading(true);
+      await deleteMissionRequest(id);
+      setMyRequests(myRequests.filter((r) => r.id !== id));
+      playSoftDown();
+      setToast('요청을 취소했어요');
+
+      const refreshed = await getChildData();
+      if (refreshed.pendingMissionIds) setPendingMissionIds(refreshed.pendingMissionIds as string[]);
     } catch (error) {
       setToast(error instanceof Error ? error.message : '오류가 발생했어요');
       console.error(error);
@@ -651,30 +703,84 @@ function ChildContent() {
             {myRequests.length > 0 && (
               <div className="rounded-2xl bg-white shadow-sm border border-black/5 overflow-hidden">
                 <p className="text-[13px] font-semibold text-[#8e8e93] px-4 pt-4 pb-2">내 요청 기록</p>
-                {myRequests.map((req, idx) => (
-                  <div
-                    key={req.id}
-                    className={`flex items-center gap-3 px-4 py-3 ${idx !== myRequests.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
-                  >
-                    <span className="text-lg shrink-0">{req.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
-                      <p className="text-[12px] text-[#8e8e93] leading-snug">
-                        요청: {formatDateTime(req.requested_at)}
-                        {req.resolved_at && (
-                          <>
-                            <br />
-                            {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}
-                          </>
-                        )}
-                        {req.status === 'approved' && req.reward !== null && (
-                          <span className="ml-1.5 font-semibold text-green-600">+{req.reward} 💖</span>
-                        )}
-                      </p>
+                {myRequests.map((req, idx) => {
+                  const isEditing = editingRequestId === req.id;
+                  return (
+                    <div
+                      key={req.id}
+                      className={`px-4 py-3 ${idx !== myRequests.length - 1 ? 'border-b border-black/[0.06]' : ''}`}
+                    >
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <EmojiPicker value={editRequestEmoji} onChange={setEditRequestEmoji} />
+                            <input
+                              type="text"
+                              value={editRequestName}
+                              onChange={(e) => setEditRequestName(e.target.value)}
+                              className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleSaveEditRequest(req.id)}
+                              disabled={isLoading}
+                              className="py-2 rounded-lg bg-green-600 text-white text-[13px] font-semibold active:scale-95 transition-all"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingRequestId(null)}
+                              className="py-2 rounded-lg bg-black/5 text-[#8e8e93] text-[13px] font-semibold active:scale-95 transition-all"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg shrink-0">{req.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[14px] text-[#1c1c1e] truncate">{req.name}</p>
+                            <p className="text-[12px] text-[#8e8e93] leading-snug">
+                              요청: {formatDateTime(req.requested_at)}
+                              {req.resolved_at && (
+                                <>
+                                  <br />
+                                  {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}
+                                </>
+                              )}
+                              {req.status === 'approved' && req.reward !== null && (
+                                <span className="ml-1.5 font-semibold text-green-600">+{req.reward} 💖</span>
+                              )}
+                            </p>
+                          </div>
+                          {req.status === 'pending' ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {req.is_custom && (
+                                <button
+                                  onClick={() => startEditRequest(req)}
+                                  className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-[13px] active:scale-90 transition-all"
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteRequest(req.id)}
+                                disabled={isLoading}
+                                className="w-8 h-8 rounded-full bg-red-50 text-red-500 text-[15px] active:scale-90 transition-all disabled:opacity-50"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[12px] font-medium text-[#8e8e93] shrink-0">{STATUS_LABEL[req.status]}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-[12px] font-medium text-[#8e8e93] shrink-0">{STATUS_LABEL[req.status]}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>,

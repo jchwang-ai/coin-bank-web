@@ -115,6 +115,49 @@ export async function requestCustomMission(description: string, photoData?: stri
   }
 }
 
+// Only a custom ("직접 요청하기") request has child-supplied text to fix —
+// a preset request's name/emoji/reward are a snapshot of the mission
+// itself, not something the child typed. Both edit and cancel are only
+// allowed while the request is still pending; once the parent has
+// approved or rejected it, it's resolved history and must not change.
+export async function updateMissionRequest(id: string, emoji: string, description: string) {
+  try {
+    if (!description.trim()) {
+      throw new Error('무엇을 했는지 적어주세요');
+    }
+
+    const result = await sql`
+      UPDATE mission_requests
+      SET emoji = ${emoji}, name = ${description.trim()}
+      WHERE id = ${id} AND status = 'pending' AND is_custom = TRUE
+    `;
+    if (result.rowCount === 0) {
+      throw new Error('이미 부모님이 확인한 요청이라 수정할 수 없어요');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating mission request:', error);
+    throw error;
+  }
+}
+
+export async function deleteMissionRequest(id: string) {
+  try {
+    const result = await sql`
+      DELETE FROM mission_requests WHERE id = ${id} AND status = 'pending'
+    `;
+    if (result.rowCount === 0) {
+      throw new Error('이미 부모님이 확인한 요청이라 취소할 수 없어요');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting mission request:', error);
+    throw error;
+  }
+}
+
 export async function proposeShopItem(emoji: string, name: string, requestedPrice: number) {
   try {
     if (!name.trim()) {
