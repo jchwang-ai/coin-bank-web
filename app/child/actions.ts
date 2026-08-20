@@ -157,6 +157,50 @@ export async function proposeMission(emoji: string, name: string, requestedRewar
   }
 }
 
+// Editing/deleting a mission proposal is only allowed while it's still
+// pending — once the parent has approved or rejected it, the record is
+// resolved history and must not change.
+export async function updateMissionProposal(id: string, emoji: string, name: string, requestedReward: number) {
+  try {
+    if (!name.trim()) {
+      throw new Error('미션 이름을 적어주세요');
+    }
+    if (!requestedReward || requestedReward < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
+
+    const result = await sql`
+      UPDATE mission_proposals
+      SET emoji = ${emoji}, name = ${name.trim()}, requested_reward = ${requestedReward}
+      WHERE id = ${id} AND status = 'pending'
+    `;
+    if (result.rowCount === 0) {
+      throw new Error('이미 부모님이 확인한 제안이라 수정할 수 없어요');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating mission proposal:', error);
+    throw error;
+  }
+}
+
+export async function deleteMissionProposal(id: string) {
+  try {
+    const result = await sql`
+      DELETE FROM mission_proposals WHERE id = ${id} AND status = 'pending'
+    `;
+    if (result.rowCount === 0) {
+      throw new Error('이미 부모님이 확인한 제안이라 삭제할 수 없어요');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting mission proposal:', error);
+    throw error;
+  }
+}
+
 export async function reorderShopItems(orderedIds: string[]) {
   try {
     await Promise.all(
