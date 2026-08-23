@@ -401,31 +401,22 @@ export default function ParentPage() {
   };
 
   const handleApproveRequest = async (request: PendingRequest) => {
-    let overrideReward: number | undefined;
-    if (request.reward === null) {
-      const parsed = approveRewardInputs[request.id] ?? 1;
-      if (!parsed || parsed < 1) {
-        setToast('하트 개수를 입력해주세요');
-        return;
-      }
-      overrideReward = parsed;
+    const finalReward = approveRewardInputs[request.id] ?? request.reward ?? 1;
+    if (!finalReward || finalReward < 1) {
+      setToast('하트 개수를 입력해주세요');
+      return;
     }
 
     try {
       setIsLoading(true);
-      const result = await approveMissionRequest(request.id, overrideReward);
+      const result = await approveMissionRequest(request.id, finalReward);
       setPendingRequests(pendingRequests.filter((r) => r.id !== request.id));
       setBalance(balance + ((result as any).reward || 0));
       playChime();
-      setToast(
-        (result as any).addedToMissionList
-          ? `+${(result as any).reward} 하트를 승인하고, 미션 목록에도 추가했어요! 💖`
-          : `+${(result as any).reward} 하트를 승인했어요! 💖`
-      );
+      setToast(`+${(result as any).reward} 하트를 승인했어요! 💖`);
 
       const data = await getParentData();
       if (data.child) setBalance((data.child as any).balance);
-      if (data.missions) setMissions(data.missions as Mission[]);
     } catch (error) {
       setToast(error instanceof Error ? error.message : '오류가 발생했어요');
       console.error(error);
@@ -916,7 +907,6 @@ export default function ParentPage() {
                         <p className="font-medium text-[15px] text-[#1c1c1e]">{req.name}</p>
                         <p className="text-[12px] text-[#8e8e93]">
                           {new Date(req.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {req.reward !== null && <span className="ml-1.5 font-semibold text-pink-500">· {req.reward} 💖</span>}
                         </p>
                         {req.photo_data && (
                           <button onClick={() => setViewingPhoto(req.photo_data)} className="mt-2 block">
@@ -924,14 +914,12 @@ export default function ParentPage() {
                             <img src={req.photo_data} alt="첨부 사진" className="w-full max-w-[200px] rounded-xl border border-black/5" />
                           </button>
                         )}
-                        {req.reward === null && (
-                          <div className="mt-2">
-                            <NumberStepper
-                              value={approveRewardInputs[req.id] ?? 1}
-                              onChange={(v) => setApproveRewardInputs({ ...approveRewardInputs, [req.id]: v })}
-                            />
-                          </div>
-                        )}
+                        <div className="mt-2">
+                          <NumberStepper
+                            value={approveRewardInputs[req.id] ?? req.reward ?? 1}
+                            onChange={(v) => setApproveRewardInputs({ ...approveRewardInputs, [req.id]: v })}
+                          />
+                        </div>
                         <div className="grid grid-cols-2 gap-2 mt-3">
                           <button
                             onClick={() => handleApproveRequest(req)}

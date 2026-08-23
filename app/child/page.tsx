@@ -154,6 +154,7 @@ function ChildContent() {
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const [editRequestEmoji, setEditRequestEmoji] = useState<string>('✨');
   const [editRequestName, setEditRequestName] = useState<string>('');
+  const [editRequestReward, setEditRequestReward] = useState<number>(1);
 
   const [burstEmojis, setBurstEmojis] = useState<string[]>(['💖', '✨', '🎉']);
   const [burstTrigger, setBurstTrigger] = useState(0);
@@ -380,6 +381,7 @@ function ChildContent() {
     setEditingRequestId(req.id);
     setEditRequestEmoji(req.emoji);
     setEditRequestName(req.name);
+    setEditRequestReward(req.reward ?? 1);
   };
 
   const handleSaveEditRequest = async (id: string) => {
@@ -389,9 +391,11 @@ function ChildContent() {
     }
     try {
       setIsLoading(true);
-      await updateMissionRequest(id, editRequestEmoji, editRequestName.trim());
+      await updateMissionRequest(id, editRequestEmoji, editRequestName.trim(), editRequestReward);
       setMyRequests(
-        myRequests.map((r) => (r.id === id ? { ...r, emoji: editRequestEmoji, name: editRequestName.trim() } : r))
+        myRequests.map((r) =>
+          r.id === id ? { ...r, emoji: editRequestEmoji, name: editRequestName.trim(), reward: editRequestReward } : r
+        )
       );
       setEditingRequestId(null);
       setToast('요청을 수정했어요! ✏️');
@@ -721,6 +725,7 @@ function ChildContent() {
                               className="flex-1 min-w-0 px-3 py-2 bg-black/[0.04] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-purple-300"
                             />
                           </div>
+                          <NumberStepper value={editRequestReward} onChange={setEditRequestReward} />
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={() => handleSaveEditRequest(req.id)}
@@ -750,6 +755,9 @@ function ChildContent() {
                                   {req.status === 'approved' ? '승인' : '거절'}: {formatDateTime(req.resolved_at)}
                                 </>
                               )}
+                              {req.status === 'pending' && req.reward !== null && (
+                                <span className="ml-1.5 font-semibold text-pink-500">· {req.reward} 💖</span>
+                              )}
                               {req.status === 'approved' && req.reward !== null && (
                                 <span className="ml-1.5 font-semibold text-green-600">+{req.reward} 💖</span>
                               )}
@@ -757,14 +765,12 @@ function ChildContent() {
                           </div>
                           {req.status === 'pending' ? (
                             <div className="flex items-center gap-1.5 shrink-0">
-                              {req.is_custom && (
-                                <button
-                                  onClick={() => startEditRequest(req)}
-                                  className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-[13px] active:scale-90 transition-all"
-                                >
-                                  ✏️
-                                </button>
-                              )}
+                              <button
+                                onClick={() => startEditRequest(req)}
+                                className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-[13px] active:scale-90 transition-all"
+                              >
+                                ✏️
+                              </button>
                               <button
                                 onClick={() => handleDeleteRequest(req.id)}
                                 disabled={isLoading}

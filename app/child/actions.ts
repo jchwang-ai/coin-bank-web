@@ -115,21 +115,23 @@ export async function requestCustomMission(description: string, photoData?: stri
   }
 }
 
-// Only a custom ("직접 요청하기") request has child-supplied text to fix —
-// a preset request's name/emoji/reward are a snapshot of the mission
-// itself, not something the child typed. Both edit and cancel are only
-// allowed while the request is still pending; once the parent has
-// approved or rejected it, it's resolved history and must not change.
-export async function updateMissionRequest(id: string, emoji: string, description: string) {
+// Edit and cancel are only allowed while the request is still pending —
+// once the parent has approved or rejected it, it's resolved history and
+// must not change. Editing a preset (mission-linked) request only touches
+// this request's own snapshot row, not the shared mission definition.
+export async function updateMissionRequest(id: string, emoji: string, description: string, reward: number) {
   try {
     if (!description.trim()) {
       throw new Error('무엇을 했는지 적어주세요');
     }
+    if (!reward || reward < 1) {
+      throw new Error('하트 개수를 입력해주세요');
+    }
 
     const result = await sql`
       UPDATE mission_requests
-      SET emoji = ${emoji}, name = ${description.trim()}
-      WHERE id = ${id} AND status = 'pending' AND is_custom = TRUE
+      SET emoji = ${emoji}, name = ${description.trim()}, reward = ${reward}
+      WHERE id = ${id} AND status = 'pending'
     `;
     if (result.rowCount === 0) {
       throw new Error('이미 부모님이 확인한 요청이라 수정할 수 없어요');

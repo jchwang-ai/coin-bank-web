@@ -234,20 +234,30 @@ export async function deleteMission(id: string) {
   }
 }
 
-export async function approveMissionRequest(requestId: string, overrideReward?: number) {
+// Approving a completion report ("이 미션 했어요") only pays out the reward
+// and resolves the request — it must NOT touch the missions list. Adding a
+// new mission to the list is exclusively what approveMissionProposal does
+// (the separate "이런 미션을 만들어주세요" flow) — the two are intentionally
+// kept apart so a one-off "I did it" report never silently becomes a
+// standing mission template.
+//
+// finalReward is always supplied by the parent's approval UI (which shows
+// an editable stepper defaulting to the request's current reward) — the
+// parent has the final say on the amount regardless of what the mission
+// snapshot or the child's own edit said.
+export async function approveMissionRequest(requestId: string, finalReward: number) {
   try {
     const request = await sql`
-      SELECT mission_id, is_custom, emoji, reward, name, status FROM mission_requests WHERE id = ${requestId}
+      SELECT name, status FROM mission_requests WHERE id = ${requestId}
     `;
     if (!request.rows.length) {
       throw new Error('요청을 찾을 수 없습니다');
     }
-    const { mission_id, is_custom, emoji, reward, name, status } = request.rows[0] as any;
+    const { name, status } = request.rows[0] as any;
     if (status !== 'pending') {
       throw new Error('이미 처리된 요청입니다');
     }
 
-    const finalReward = reward ?? overrideReward;
     if (!finalReward || finalReward < 1) {
       throw new Error('하트 개수를 입력해주세요');
     }
@@ -269,25 +279,7 @@ export async function approveMissionRequest(requestId: string, overrideReward?: 
       WHERE id = ${requestId}
     `;
 
-    // A custom (free-text) request has no linked mission — add it to the
-    // mission list so the same task can be picked next time instead of
-    // retyped, unless a mission with that name already exists.
-    let addedToMissionList = false;
-    if (is_custom && !mission_id) {
-      const existing = await sql`SELECT id FROM missions WHERE LOWER(name) = LOWER(${name})`;
-      if (!existing.rows.length) {
-        const maxOrder = await sql`SELECT COALESCE(MAX(sort_order), -1) as max_order FROM missions`;
-        const nextOrder = (maxOrder.rows[0] as any).max_order + 1;
-        await sql`
-          INSERT INTO missions (emoji, name, reward, sort_order)
-          VALUES (${emoji}, ${name}, ${finalReward}, ${nextOrder})
-        `;
-        await logActivity('parent', '미션 자동 추가', `${emoji} ${name} (${finalReward}💖)`);
-        addedToMissionList = true;
-      }
-    }
-
-    return { success: true, reward: finalReward, addedToMissionList };
+    return { success: true, reward: finalReward };
   } catch (error) {
     console.error('Error approving mission request:', error);
     throw error;
