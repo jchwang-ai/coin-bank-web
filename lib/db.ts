@@ -223,6 +223,47 @@ export async function initializeDatabase() {
       );
     `;
 
+    // ── 캐릭터 꾸미기 상점 ────────────────────────────────────────────
+    // Gems are EARNED in the separate English-vocab app (read-only, see
+    // lib/vocabGems.ts) and SPENT here. cost_paid doubles as the spend
+    // ledger, so the balance is (earned there − SUM(cost_paid) here) and no
+    // separate counter can drift. The item catalog itself lives in code
+    // (lib/characterShop.ts) so adding items needs no migration.
+    await sql`
+      CREATE TABLE IF NOT EXISTS character_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+        item_id VARCHAR(50) NOT NULL,
+        cost_paid INTEGER NOT NULL DEFAULT 0,
+        acquired_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, item_id)
+      );
+    `;
+
+    // What the character is currently wearing, one row per slot.
+    await sql`
+      CREATE TABLE IF NOT EXISTS character_equipped (
+        user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+        slot VARCHAR(20) NOT NULL,
+        item_id VARCHAR(50) NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, slot)
+      );
+    `;
+
+    // "이런 아이템도 있으면 좋겠어요" — the child's own item wishes.
+    await sql`
+      CREATE TABLE IF NOT EXISTS item_wishes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        note VARCHAR(300),
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP WITH TIME ZONE
+      );
+    `;
+
     console.log('✓ Database tables initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

@@ -7,10 +7,24 @@ import EmojiBurst from '@/components/EmojiBurst';
 import DiaryCalendar, { DiaryMark } from '@/components/DiaryCalendar';
 import DiaryBuddy from '@/components/DiaryBuddy';
 import BuddyPickerSheet from '@/components/BuddyPickerSheet';
+import CharacterStage from '@/components/CharacterStage';
+import CharacterShopSheet from '@/components/CharacterShopSheet';
+import MyCollectionSheet from '@/components/MyCollectionSheet';
+import ItemWishSheet from '@/components/ItemWishSheet';
+import ItemRevealOverlay from '@/components/ItemRevealOverlay';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
-import { playChime, playPop } from '@/lib/sound';
+import { playChime, playPop, playSparkle } from '@/lib/sound';
 import { formatCardDate, isToday, moodOf, todayKey } from '@/lib/diary';
+import { ShopItem, SlotId } from '@/lib/characterShop';
 import { getDiaryOverview, setDiaryPet, DiaryListItem } from './actions';
+import {
+  getShopState,
+  buyItem,
+  equipItem,
+  submitItemWish,
+  deleteItemWish,
+  ItemWish,
+} from './shopActions';
 
 export default function DiaryPage() {
   const router = useRouter();
@@ -29,8 +43,48 @@ export default function DiaryPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
+  // 캐릭터 상점
+  const [gemsEarned, setGemsEarned] = useState(0);
+  const [gemsSpent, setGemsSpent] = useState(0);
+  const [gemsLeft, setGemsLeft] = useState(0);
+  const [vocabConnected, setVocabConnected] = useState(true);
+  const [ownedIds, setOwnedIds] = useState<string[]>([]);
+  const [equipped, setEquipped] = useState<Record<string, string>>({});
+  const [wishes, setWishes] = useState<ItemWish[]>([]);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const [wishOpen, setWishOpen] = useState(false);
+  const [reveal, setReveal] = useState<{ item: ShopItem; wasHidden: boolean } | null>(null);
+
+  const refreshShop = async () => {
+    const s = await getShopState();
+    setGemsEarned(s.gemsEarned);
+    setGemsSpent(s.gemsSpent);
+    setGemsLeft(s.gemsLeft);
+    setVocabConnected(s.vocabConnected);
+    setOwnedIds(s.ownedIds);
+    setEquipped(s.equipped);
+    setWishes(s.wishes);
+  };
+
   useEffect(() => {
     let cancelled = false;
+
+    // Shop state loads alongside the diary; a vocab-DB hiccup must not stop
+    // the diary from rendering, so it has its own catch.
+    getShopState()
+      .then((s) => {
+        if (cancelled) return;
+        setGemsEarned(s.gemsEarned);
+        setGemsSpent(s.gemsSpent);
+        setGemsLeft(s.gemsLeft);
+        setVocabConnected(s.vocabConnected);
+        setOwnedIds(s.ownedIds);
+        setEquipped(s.equipped);
+        setWishes(s.wishes);
+      })
+      .catch((err) => console.error('Shop state load failed:', err));
+
     getDiaryOverview()
       .then((data) => {
         if (cancelled) return;
@@ -83,6 +137,37 @@ export default function DiaryPage() {
     setToast('새 친구가 생겼어요! 🌱');
   };
 
+  const handleBuy = async (item: ShopItem) => {
+    const wasHidden = !!item.hidden;
+    await buyItem(item.id);
+    playSparkle();
+    setReveal({ item, wasHidden });
+    await refreshShop();
+  };
+
+  const handleEquip = async (slot: SlotId, itemId: string | null) => {
+    await equipItem(slot, itemId);
+    // Optimistic so the character updates the instant it's tapped.
+    setEquipped((prev) => {
+      const next = { ...prev };
+      if (itemId === null) delete next[slot];
+      else next[slot] = itemId;
+      return next;
+    });
+  };
+
+  const handleSubmitWish = async (name: string, note: string) => {
+    await submitItemWish(name, note);
+    playChime();
+    setToast('아이템 아이디어를 보냈어요! 💌');
+    await refreshShop();
+  };
+
+  const handleDeleteWish = async (id: string) => {
+    await deleteItemWish(id);
+    await refreshShop();
+  };
+
   if (isLoading) {
     return <div className="pt-24 text-center text-[#8e8e93]">불러오는 중...</div>;
   }
@@ -113,6 +198,54 @@ export default function DiaryPage() {
             >
               다시 시도하기
             </button>
+          </div>
+        )}
+
+        {/* Dressed-up character stage (only once a friend is chosen) */}
+        {petAnimal && (
+          <div className="mb-3">
+            <CharacterStage
+              baseAnimalId={petAnimal}
+              equipped={equipped}
+              completedCount={totalCompleted}
+            />
+
+            {/* Gems + shop entry points */}
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex flex-1 items-center justify-between rounded-2xl bg-gradient-to-r from-sky-400 to-cyan-400 px-3.5 py-2.5 shadow-sm">
+                <span className="text-[12px] font-semibold text-white/85">내 보석</span>
+                <span className="text-[17px] font-bold text-white">💎 {gemsLeft}</span>
+              </div>
+              <button
+                onClick={() => {
+                  playPop();
+                  setShopOpen(true);
+                }}
+                className="rounded-2xl bg-[#1c1c1e] px-4 py-2.5 text-[13px] font-bold text-white transition-transform active:scale-95"
+              >
+                🛍️ 상점
+              </button>
+              <button
+                onClick={() => {
+                  playPop();
+                  setCollectionOpen(true);
+                }}
+                className="rounded-2xl bg-black/[0.06] px-4 py-2.5 text-[13px] font-bold text-[#1c1c1e] transition-transform active:scale-95"
+              >
+                🎒 내 것
+              </button>
+            </div>
+
+            {!vocabConnected && (
+              <p className="mt-1.5 px-1 text-[11px] text-amber-600">
+                💎 보석을 불러오지 못했어요 — 영어 단어 앱과 연결을 확인해주세요
+              </p>
+            )}
+            {vocabConnected && (
+              <p className="mt-1.5 px-1 text-[11px] text-[#8e8e93]">
+                💎 보석은 영어 단어를 공부하면 모여요 (모은 보석 {gemsEarned}개)
+              </p>
+            )}
           </div>
         )}
 
@@ -242,6 +375,46 @@ export default function DiaryPage() {
           current={petAnimal}
           onClose={() => setPickerOpen(false)}
           onSelect={handlePickBuddy}
+        />
+      )}
+
+      {shopOpen && (
+        <CharacterShopSheet
+          gemsLeft={gemsLeft}
+          ownedIds={ownedIds}
+          equipped={equipped}
+          onClose={() => setShopOpen(false)}
+          onBuy={handleBuy}
+          onEquip={handleEquip}
+          onOpenWishes={() => setWishOpen(true)}
+        />
+      )}
+
+      {collectionOpen && (
+        <MyCollectionSheet
+          ownedIds={ownedIds}
+          equipped={equipped}
+          gemsEarned={gemsEarned}
+          gemsSpent={gemsSpent}
+          onClose={() => setCollectionOpen(false)}
+          onEquip={handleEquip}
+        />
+      )}
+
+      {wishOpen && (
+        <ItemWishSheet
+          wishes={wishes}
+          onClose={() => setWishOpen(false)}
+          onSubmit={handleSubmitWish}
+          onDelete={handleDeleteWish}
+        />
+      )}
+
+      {reveal && (
+        <ItemRevealOverlay
+          item={reveal.item}
+          wasHidden={reveal.wasHidden}
+          onDone={() => setReveal(null)}
         />
       )}
 
