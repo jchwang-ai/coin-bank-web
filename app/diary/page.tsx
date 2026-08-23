@@ -27,6 +27,7 @@ export default function DiaryPage() {
   const [petAnimal, setPetAnimal] = useState<string | null>(null);
   const [totalCompleted, setTotalCompleted] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +48,9 @@ export default function DiaryPage() {
       })
       .catch((err) => {
         console.error(err);
-        if (!cancelled) setToast('일기를 불러오지 못했어요');
+        // Show a persistent banner, not just a toast — a failed load used to
+        // look identical to "no diaries yet", which hid the real problem.
+        if (!cancelled) setLoadError(true);
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -100,6 +103,18 @@ export default function DiaryPage() {
             돌아가기
           </button>
         </div>
+
+        {loadError && (
+          <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3.5 text-center">
+            <p className="text-[14px] font-bold text-red-500">일기를 불러오지 못했어요</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 rounded-lg bg-red-500 px-4 py-2 text-[13px] font-bold text-white active:scale-95"
+            >
+              다시 시도하기
+            </button>
+          </div>
+        )}
 
         {/* Growing buddy — the main motivation hook */}
         <DiaryBuddy

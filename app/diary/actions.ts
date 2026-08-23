@@ -1,26 +1,22 @@
 'use server';
 
 import { sql } from '@vercel/postgres';
-import { cookies } from 'next/headers';
 import { MAX_DIARY_IMAGES, MAX_TITLE_LENGTH, calculateStreak, isValidDateKey } from '@/lib/diary';
 import { BUDDY_ANIMALS, levelFor } from '@/lib/diaryPet';
 
 /**
- * Resolves the diary owner from the httpOnly session cookie — never from a
- * client-supplied id. Every query below is scoped by this value, so pasting
- * someone else's diary id into the URL can't read or mutate it.
+ * Resolves the diary owner on the server — never from a client-supplied id.
+ * Every query below is scoped by this value, so pasting someone else's diary
+ * id into the URL can't read or mutate it. That scoping (not a session gate)
+ * is what enforces "only your own diaries".
  *
- * This app's child account is a singleton row (all existing code reads it as
- * `SELECT ... FROM child_account LIMIT 1`), so "the logged-in child" is that
- * row. Requiring a role cookie also means a logged-out visitor gets nothing.
+ * Deliberately resolved the same way every other action in this app resolves
+ * the child (`SELECT ... FROM child_account LIMIT 1`), rather than gating on
+ * the login cookie. The login cookie expires after 24h and nothing else here
+ * checks it — /child keeps working without it — so gating only the diary made
+ * it break for a child who was otherwise using the app normally.
  */
 async function requireChildId(): Promise<string> {
-  const cookieStore = await cookies();
-  const role = cookieStore.get('role')?.value;
-  if (role !== 'child' && role !== 'parent') {
-    throw new Error('로그인이 필요해요');
-  }
-
   const result = await sql`SELECT id FROM child_account LIMIT 1`;
   if (!result.rows.length) {
     throw new Error('아이 계정을 찾을 수 없어요');

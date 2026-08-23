@@ -13,13 +13,19 @@ interface BuddyPickerSheetProps {
 export default function BuddyPickerSheet({ current, onClose, onSelect }: BuddyPickerSheetProps) {
   const [picked, setPicked] = useState<string | null>(current);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSave = async () => {
     if (!picked) return;
     try {
+      setError('');
       setIsSaving(true);
       await onSelect(picked);
-    } catch {
+    } catch (err) {
+      // Never fail silently here — a swallowed error looked exactly like
+      // "I picked a friend and nothing happened".
+      setError(err instanceof Error ? err.message : '저장하지 못했어요. 다시 눌러주세요');
+      console.error('Buddy save failed:', err);
       setIsSaving(false);
     }
   };
@@ -61,6 +67,12 @@ export default function BuddyPickerSheet({ current, onClose, onSelect }: BuddyPi
             );
           })}
         </div>
+
+        {error && (
+          <p className="mt-3 rounded-xl bg-red-50 px-4 py-2.5 text-[13px] font-semibold text-red-500">
+            {error}
+          </p>
+        )}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
