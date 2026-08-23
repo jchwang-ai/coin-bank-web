@@ -1,8 +1,49 @@
 'use server';
 
 import { sql } from '@vercel/postgres';
-import { itemById, SLOTS, SlotId } from '@/lib/characterShop';
+import { Motion, Rarity, ShopItem, itemById, SLOTS, SlotId } from '@/lib/characterShop';
+import { inferItem } from '@/lib/customItem';
 import { getEarnedGems } from '@/lib/vocabGems';
+
+/**
+ * Child-invented items live in the DB (they're created at runtime) while the
+ * built-in catalog lives in code. Their ids are prefixed so the two can share
+ * one id space in character_items / character_equipped.
+ */
+const CUSTOM_PREFIX = 'custom:';
+
+function customItemId(rowId: string) {
+  return `${CUSTOM_PREFIX}${rowId}`;
+}
+
+function isCustomId(id: string) {
+  return id.startsWith(CUSTOM_PREFIX);
+}
+
+function rowToShopItem(row: any): ShopItem {
+  return {
+    id: customItemId(row.id),
+    slot: (row.slot || 'held') as SlotId,
+    name: row.name,
+    emoji: row.emoji || '🎁',
+    cost: Number(row.cost) || 35,
+    rarity: (row.rarity || 'rare') as Rarity,
+    motion: (row.motion || undefined) as Motion | undefined,
+  };
+}
+
+/** Looks an item up in the code catalog first, then the child's own items. */
+async function resolveItem(itemId: string): Promise<ShopItem | undefined> {
+  if (!isCustomId(itemId)) return itemById(itemId);
+
+  const rowId = itemId.slice(CUSTOM_PREFIX.length);
+  // Guard: a malformed id must not blow up the uuid cast.
+  if (!/^[0-9a-f-]{36}$/i.test(rowId)) return undefined;
+
+  const r = await sql`SELECT id, name, emoji, slot, motion, cost, rarity FROM item_wishes WHERE id = ${rowId}`;
+  if (!r.rows.length) return undefined;
+  return rowToShopItem(r.rows[0]);
+}
 
 /**
  * Owner is resolved server-side from the singleton child account — the same
@@ -30,6 +71,13 @@ export interface ItemWish {
   created_at: string;
 }
 
+/** A child-made item, shaped like a catalog item so the shop can render it. */
+export interface CustomItem extends ShopItem {
+  /** DB row id, used for deletion. */
+  rowId: string;
+  note: string | null;
+}
+
 export async function getShopState() {
   try {
     const userId = await requireChildId();
@@ -39,9 +87,9 @@ export async function getShopState() {
       sql`SELECT item_id, cost_paid, acquired_at FROM character_items WHERE user_id = ${userId}`,
       sql`SELECT slot, item_id FROM character_equipped WHERE user_id = ${userId}`,
       sql`
-        SELECT id, name, note, status, created_at
+        SELECT id, name, note, emoji, slot, motion, cost, rarity, status, created_at
         FROM item_wishes WHERE user_id = ${userId}
-        ORDER BY created_at DESC LIMIT 20
+        ORDER BY created_at DESC LIMIT 40
       `,
     ]);
 
@@ -57,7 +105,9 @@ export async function getShopState() {
         acc[r.slot] = r.item_id;
         return acc;
       }, {}),
-      wishes: wishes.rows as unknown as ItemWish[],
+      customItems: (wishes.rows as any[]).map(
+        (r): CustomItem => ({ ...rowToShopItem(r), rowId: r.id as string, note: r.note ?? null })
+      ),
     };
   } catch (error) {
     console.error('Error fetching shop state:', error);
@@ -72,7 +122,7 @@ export async function getShopState() {
  */
 export async function buyItem(itemId: string) {
   try {
-    const item = itemById(itemId);
+    const item = await resolveItem(itemId);
     if (!item) throw new Error('그런 아이템이 없어요');
 
     const userId = await requireChildId();
@@ -124,7 +174,7 @@ export async function equipItem(slot: SlotId, itemId: string | null) {
       return { success: true };
     }
 
-    const item = itemById(itemId);
+    const item = await resolveItem(itemId);
     if (!item || item.slot !== slot) throw new Error('이 칸에 넣을 수 없어요');
 
     const owned = await sql`
@@ -146,34 +196,59 @@ export async function equipItem(slot: SlotId, itemId: string | null) {
   }
 }
 
-/** "이런 아이템 만들어주세요" — the child's own idea for the shop. */
-export async function submitItemWish(name: string, note: string) {
+/**
+ * "이런 아이템 만들어주세요" — creates the item immediately, no parent
+ * approval: the emoji, slot, movement and price are inferred from the name
+ * and it lands in the shop ready to buy.
+ */
+export async function createCustomItem(name: string, note: string) {
   try {
-    if (!name.trim()) throw new Error('어떤 아이템인지 적어주세요');
-    const userId = await requireChildId();
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('어떤 아이템인지 적어주세요');
 
-    await sql`
-      INSERT INTO item_wishes (user_id, name, note)
-      VALUES (${userId}, ${name.trim().slice(0, 100)}, ${note.trim().slice(0, 300) || null})
+    const userId = await requireChildId();
+    const inferred = inferItem(trimmed);
+
+    const r = await sql`
+      INSERT INTO item_wishes (user_id, name, note, emoji, slot, motion, cost, rarity, status)
+      VALUES (
+        ${userId}, ${trimmed.slice(0, 100)}, ${note.trim().slice(0, 300) || null},
+        ${inferred.emoji}, ${inferred.slot}, ${inferred.motion ?? null},
+        ${inferred.cost}, ${inferred.rarity}, 'ready'
+      )
+      RETURNING id, name, note, emoji, slot, motion, cost, rarity
     `;
 
-    return { success: true };
+    const row = r.rows[0] as any;
+    return {
+      success: true,
+      item: { ...rowToShopItem(row), rowId: row.id as string, note: row.note ?? null } as CustomItem,
+    };
   } catch (error) {
-    console.error('Error submitting item wish:', error);
+    console.error('Error creating custom item:', error);
     throw error;
   }
 }
 
-export async function deleteItemWish(id: string) {
+/**
+ * Deletes a child-made item. Also removes the purchase record so the gems
+ * spent on it are returned to the balance — deleting your own creation
+ * shouldn't quietly cost you 70 gems.
+ */
+export async function deleteCustomItem(rowId: string) {
   try {
     const userId = await requireChildId();
-    const r = await sql`
-      DELETE FROM item_wishes WHERE id = ${id} AND user_id = ${userId} AND status = 'pending'
-    `;
+    const fullId = customItemId(rowId);
+
+    await sql`DELETE FROM character_equipped WHERE user_id = ${userId} AND item_id = ${fullId}`;
+    await sql`DELETE FROM character_items WHERE user_id = ${userId} AND item_id = ${fullId}`;
+
+    const r = await sql`DELETE FROM item_wishes WHERE id = ${rowId} AND user_id = ${userId}`;
     if (r.rowCount === 0) throw new Error('지울 수 없어요');
+
     return { success: true };
   } catch (error) {
-    console.error('Error deleting item wish:', error);
+    console.error('Error deleting custom item:', error);
     throw error;
   }
 }

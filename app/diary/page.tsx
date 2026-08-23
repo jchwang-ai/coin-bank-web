@@ -21,9 +21,9 @@ import {
   getShopState,
   buyItem,
   equipItem,
-  submitItemWish,
-  deleteItemWish,
-  ItemWish,
+  createCustomItem,
+  deleteCustomItem,
+  CustomItem,
 } from './shopActions';
 
 export default function DiaryPage() {
@@ -50,7 +50,7 @@ export default function DiaryPage() {
   const [vocabConnected, setVocabConnected] = useState(true);
   const [ownedIds, setOwnedIds] = useState<string[]>([]);
   const [equipped, setEquipped] = useState<Record<string, string>>({});
-  const [wishes, setWishes] = useState<ItemWish[]>([]);
+  const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [shopOpen, setShopOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [wishOpen, setWishOpen] = useState(false);
@@ -64,7 +64,7 @@ export default function DiaryPage() {
     setVocabConnected(s.vocabConnected);
     setOwnedIds(s.ownedIds);
     setEquipped(s.equipped);
-    setWishes(s.wishes);
+    setCustomItems(s.customItems);
   };
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export default function DiaryPage() {
         setVocabConnected(s.vocabConnected);
         setOwnedIds(s.ownedIds);
         setEquipped(s.equipped);
-        setWishes(s.wishes);
+        setCustomItems(s.customItems);
       })
       .catch((err) => console.error('Shop state load failed:', err));
 
@@ -156,15 +156,16 @@ export default function DiaryPage() {
     });
   };
 
-  const handleSubmitWish = async (name: string, note: string) => {
-    await submitItemWish(name, note);
+  const handleCreateItem = async (name: string, note: string) => {
+    const res = await createCustomItem(name, note);
     playChime();
-    setToast('아이템 아이디어를 보냈어요! 💌');
+    setToast(`'${res.item.name}' 아이템이 상점에 생겼어요! ✨`);
     await refreshShop();
   };
 
-  const handleDeleteWish = async (id: string) => {
-    await deleteItemWish(id);
+  const handleDeleteCustomItem = async (rowId: string) => {
+    await deleteCustomItem(rowId);
+    setToast('아이템을 지웠어요');
     await refreshShop();
   };
 
@@ -208,6 +209,7 @@ export default function DiaryPage() {
               baseAnimalId={petAnimal}
               equipped={equipped}
               completedCount={totalCompleted}
+              customItems={customItems}
             />
 
             {/* Gems + shop entry points */}
@@ -383,9 +385,11 @@ export default function DiaryPage() {
           gemsLeft={gemsLeft}
           ownedIds={ownedIds}
           equipped={equipped}
+          customItems={customItems}
           onClose={() => setShopOpen(false)}
           onBuy={handleBuy}
           onEquip={handleEquip}
+          onDeleteCustom={handleDeleteCustomItem}
           onOpenWishes={() => setWishOpen(true)}
         />
       )}
@@ -403,10 +407,10 @@ export default function DiaryPage() {
 
       {wishOpen && (
         <ItemWishSheet
-          wishes={wishes}
+          items={customItems}
           onClose={() => setWishOpen(false)}
-          onSubmit={handleSubmitWish}
-          onDelete={handleDeleteWish}
+          onSubmit={handleCreateItem}
+          onDelete={handleDeleteCustomItem}
         />
       )}
 

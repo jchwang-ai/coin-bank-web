@@ -13,13 +13,19 @@ import {
 } from '@/lib/characterShop';
 import { playPop, playSoftDown } from '@/lib/sound';
 
+interface CustomShopItem extends ShopItem {
+  rowId: string;
+}
+
 interface CharacterShopSheetProps {
   gemsLeft: number;
   ownedIds: string[];
   equipped: Record<string, string>;
+  customItems: CustomShopItem[];
   onClose: () => void;
   onBuy: (item: ShopItem) => Promise<void>;
   onEquip: (slot: SlotId, itemId: string | null) => Promise<void>;
+  onDeleteCustom: (rowId: string) => Promise<void>;
   onOpenWishes: () => void;
 }
 
@@ -27,9 +33,11 @@ export default function CharacterShopSheet({
   gemsLeft,
   ownedIds,
   equipped,
+  customItems,
   onClose,
   onBuy,
   onEquip,
+  onDeleteCustom,
   onOpenWishes,
 }: CharacterShopSheetProps) {
   const [slot, setSlot] = useState<SlotId>('hat');
@@ -38,6 +46,7 @@ export default function CharacterShopSheet({
 
   const owned = new Set(ownedIds);
   const hiddenFound = SHOP_ITEMS.filter((i) => i.hidden && owned.has(i.id)).length;
+  const customById = new Map(customItems.map((c) => [c.id, c]));
 
   const handleTap = async (item: ShopItem) => {
     setError('');
@@ -113,7 +122,9 @@ export default function CharacterShopSheet({
         {/* Item grid */}
         <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
           <div className="grid grid-cols-3 gap-2.5">
-            {itemsForSlot(slot).map((item) => {
+            {/* Child-made items come first so a brand-new creation is right there. */}
+            {[...customItems.filter((c) => c.slot === slot), ...itemsForSlot(slot)].map((item) => {
+              const custom = customById.get(item.id);
               const isOwned = owned.has(item.id);
               const isWorn = equipped[item.slot] === item.id;
               const mystery = item.hidden && !isOwned;
@@ -121,11 +132,31 @@ export default function CharacterShopSheet({
               const rarity = RARITY[item.rarity];
 
               return (
+                <div key={item.id} className="relative">
+                {/* Delete is a sibling, not nested — nested buttons are invalid HTML */}
+                {custom && (
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`'${item.name}' 아이템을 지울까요?`)) return;
+                      try {
+                        setBusyId(item.id);
+                        await onDeleteCustom(custom.rowId);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '지우지 못했어요');
+                      } finally {
+                        setBusyId(null);
+                      }
+                    }}
+                    className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white shadow active:scale-90"
+                    aria-label="내가 만든 아이템 지우기"
+                  >
+                    ✕
+                  </button>
+                )}
                 <button
-                  key={item.id}
                   onClick={() => handleTap(item)}
                   disabled={busyId === item.id}
-                  className={`relative flex flex-col items-center gap-1 rounded-2xl p-2.5 pt-3 transition-all active:scale-95 disabled:opacity-60 ${
+                  className={`relative flex w-full flex-col items-center gap-1 rounded-2xl p-2.5 pt-3 transition-all active:scale-95 disabled:opacity-60 ${
                     isWorn
                       ? `bg-violet-50 ring-2 ${rarity.ring}`
                       : isOwned
@@ -142,8 +173,20 @@ export default function CharacterShopSheet({
                     {rarity.label}
                   </span>
 
-                  {isWorn && (
+                  {isWorn && !custom && (
                     <span className="absolute right-1.5 top-1.5 text-[11px]">✅</span>
+                  )}
+
+                  {custom && (
+                    <span className="absolute left-1.5 top-[18px] rounded-full bg-amber-100 px-1.5 text-[8px] font-bold text-amber-700">
+                      내가 만든
+                    </span>
+                  )}
+
+                  {item.motion && (
+                    <span className="absolute right-1.5 bottom-1.5 text-[9px]" title="움직여요">
+                      {item.motion === 'fly' ? '🪽' : item.motion === 'hop' ? '👟' : item.motion === 'orbit' ? '🌀' : '💨'}
+                    </span>
                   )}
 
                   {/* Icon — silhouette while it's a mystery */}
@@ -177,6 +220,7 @@ export default function CharacterShopSheet({
                     </span>
                   )}
                 </button>
+                </div>
               );
             })}
           </div>

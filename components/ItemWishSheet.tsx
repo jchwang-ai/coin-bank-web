@@ -1,19 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { ItemWish } from '@/app/diary/shopActions';
+import { CustomItem } from '@/app/diary/shopActions';
 
 interface ItemWishSheetProps {
-  wishes: ItemWish[];
+  items: CustomItem[];
   onClose: () => void;
   onSubmit: (name: string, note: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (rowId: string) => Promise<void>;
 }
 
 const IDEAS = ['공룡 친구', '우주복', '무지개 날개', '고양이 귀', '축구공', '케이크'];
 
 /** "추가하고 싶은 아이템을 적으세요" — the child proposes new shop items. */
-export default function ItemWishSheet({ wishes, onClose, onSubmit, onDelete }: ItemWishSheetProps) {
+export default function ItemWishSheet({ items, onClose, onSubmit, onDelete }: ItemWishSheetProps) {
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -45,7 +45,7 @@ export default function ItemWishSheet({ wishes, onClose, onSubmit, onDelete }: I
 
         <p className="shrink-0 text-[18px] font-bold text-[#1c1c1e]">✏️ 아이템 만들어주세요</p>
         <p className="mb-3 mt-0.5 shrink-0 text-[12px] text-[#8e8e93]">
-          갖고 싶은 아이템을 적어주면 상점에 만들어드려요!
+          적으면 <span className="font-bold text-amber-600">바로 상점에 생겨요!</span> 기다릴 필요 없어요 ✨
         </p>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -88,36 +88,38 @@ export default function ItemWishSheet({ wishes, onClose, onSubmit, onDelete }: I
             disabled={isSaving}
             className="mt-3 w-full rounded-xl bg-gradient-to-r from-amber-400 to-orange-400 py-3.5 text-[15px] font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
           >
-            {isSaving ? '보내는 중...' : '보내기 💌'}
+            {isSaving ? '만드는 중...' : '지금 만들기 ✨'}
           </button>
 
-          {wishes.length > 0 && (
+          {items.length > 0 && (
             <div className="mt-5">
-              <p className="mb-2 text-[13px] font-bold text-[#8e8e93]">내가 적은 아이템</p>
+              <p className="mb-2 text-[13px] font-bold text-[#8e8e93]">
+                내가 만든 아이템 {items.length}개
+              </p>
               <div className="overflow-hidden rounded-2xl bg-black/[0.02]">
-                {wishes.map((w, idx) => (
+                {items.map((it, idx) => (
                   <div
-                    key={w.id}
+                    key={it.rowId}
                     className={`flex items-center gap-3 px-4 py-3 ${
-                      idx !== wishes.length - 1 ? 'border-b border-black/[0.06]' : ''
+                      idx !== items.length - 1 ? 'border-b border-black/[0.06]' : ''
                     }`}
                   >
+                    <span className="text-[24px] leading-none">{it.emoji}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] font-semibold text-[#1c1c1e]">{w.name}</p>
-                      {w.note && <p className="line-clamp-1 text-[11px] text-[#8e8e93]">{w.note}</p>}
+                      <p className="truncate text-[14px] font-semibold text-[#1c1c1e]">{it.name}</p>
+                      <p className="text-[11px] text-[#8e8e93]">
+                        💎 {it.cost} · {it.motion ? '움직여요' : '꾸미기'}
+                      </p>
                     </div>
-                    <span className="shrink-0 text-[11px] font-bold text-[#8e8e93]">
-                      {w.status === 'pending' ? '⏳ 기다리는 중' : '✅ 만들었어요'}
-                    </span>
-                    {w.status === 'pending' && (
-                      <button
-                        onClick={() => onDelete(w.id)}
-                        className="shrink-0 text-[13px] text-red-400 active:scale-90"
-                        aria-label="지우기"
-                      >
-                        ✕
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`'${it.name}' 아이템을 지울까요?`)) onDelete(it.rowId);
+                      }}
+                      className="shrink-0 text-[13px] text-red-400 active:scale-90"
+                      aria-label="지우기"
+                    >
+                      ✕
+                    </button>
                   </div>
                 ))}
               </div>

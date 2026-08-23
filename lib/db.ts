@@ -251,7 +251,9 @@ export async function initializeDatabase() {
       );
     `;
 
-    // "이런 아이템도 있으면 좋겠어요" — the child's own item wishes.
+    // Items the child invents. These are created ready-to-buy (no parent
+    // approval step) with an emoji/slot/price inferred from the name — see
+    // lib/customItem.ts — and the child can delete their own again.
     await sql`
       CREATE TABLE IF NOT EXISTS item_wishes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -262,6 +264,26 @@ export async function initializeDatabase() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         resolved_at TIMESTAMP WITH TIME ZONE
       );
+    `;
+
+    // Migration: item_wishes started as a parent-approval queue; it now holds
+    // real shop items, so it needs the item fields.
+    await sql`ALTER TABLE item_wishes ADD COLUMN IF NOT EXISTS emoji VARCHAR(50)`;
+    await sql`ALTER TABLE item_wishes ADD COLUMN IF NOT EXISTS slot VARCHAR(20)`;
+    await sql`ALTER TABLE item_wishes ADD COLUMN IF NOT EXISTS motion VARCHAR(20)`;
+    await sql`ALTER TABLE item_wishes ADD COLUMN IF NOT EXISTS cost INTEGER`;
+    await sql`ALTER TABLE item_wishes ADD COLUMN IF NOT EXISTS rarity VARCHAR(20)`;
+
+    // Backfill anything requested before auto-approval existed so those rows
+    // become usable items instead of sitting pending forever.
+    await sql`
+      UPDATE item_wishes
+      SET emoji = COALESCE(emoji, '🎁'),
+          slot = COALESCE(slot, 'held'),
+          cost = COALESCE(cost, 35),
+          rarity = COALESCE(rarity, 'rare'),
+          status = 'ready'
+      WHERE emoji IS NULL OR slot IS NULL OR cost IS NULL OR status = 'pending'
     `;
 
     console.log('✓ Database tables initialized successfully');

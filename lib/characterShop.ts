@@ -4,7 +4,7 @@
 // Gems ("보석") are earned in the English-vocabulary app and read read-only
 // from there (see lib/vocabGems.ts); spending is recorded here.
 
-export type SlotId = 'character' | 'hat' | 'face' | 'held' | 'background' | 'effect';
+export type SlotId = 'character' | 'hat' | 'face' | 'held' | 'background' | 'effect' | 'companion';
 
 export interface Slot {
   id: SlotId;
@@ -20,6 +20,7 @@ export const SLOTS: Slot[] = [
   { id: 'held', label: '손에 든 것', emoji: '🎈' },
   { id: 'background', label: '배경', emoji: '🌈' },
   { id: 'effect', label: '반짝임', emoji: '✨' },
+  { id: 'companion', label: '따라다니는 친구', emoji: '🐝' },
 ];
 
 export type Rarity = 'common' | 'rare' | 'epic' | 'legend';
@@ -38,6 +39,18 @@ export const RARITY: Record<Rarity, RarityStyle> = {
   legend: { label: '레전드', ring: 'ring-amber-400', chip: 'bg-amber-100 text-amber-700', glow: 'shadow-amber-400/60' },
 };
 
+/**
+ * How an owned item behaves on the character stage.
+ *  - undefined : pinned to the character (hats, glasses, held things)
+ *  - 'fly'     : roams the whole stage on a wandering path
+ *  - 'hop'     : bounces along the ground
+ *  - 'orbit'   : circles around the character
+ *  - 'float'   : drifts upward and repeats (sparkle-type effects)
+ * Rendering is driven by this, NOT by the slot — so a butterfly in the face
+ * slot still flies instead of being stuck to the face.
+ */
+export type Motion = 'fly' | 'hop' | 'orbit' | 'float';
+
 export interface ShopItem {
   id: string;
   slot: SlotId;
@@ -46,6 +59,7 @@ export interface ShopItem {
   emoji: string;
   cost: number;
   rarity: Rarity;
+  motion?: Motion;
   /** Hidden items show only a silhouette until bought — the surprise is the point. */
   hidden?: boolean;
   /**
@@ -85,7 +99,7 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'face_sun', slot: 'face', name: '선글라스', emoji: '🕶️', cost: 45, rarity: 'common' },
   { id: 'face_mask', slot: 'face', name: '가면', emoji: '🎭', cost: 80, rarity: 'rare' },
   { id: 'face_star', slot: 'face', name: '별 스티커', emoji: '⭐', cost: 40, rarity: 'common' },
-  { id: 'face_rainbow', slot: 'face', name: '나비 페이스페인팅', emoji: '🦋', cost: 200, rarity: 'epic', hidden: true, teaser: '얼굴에 그리는 것' },
+  { id: 'face_rainbow', slot: 'face', name: '날아다니는 나비', emoji: '🦋', cost: 200, rarity: 'epic', motion: 'fly', hidden: true, teaser: '팔랑팔랑 날아요' },
 
   // ── 손에 든 것 ────────────────────────────────────────────────────
   { id: 'held_balloon', slot: 'held', name: '풍선', emoji: '🎈', cost: 25, rarity: 'common' },
@@ -105,12 +119,23 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'bg_space', slot: 'background', name: '우주 정거장', emoji: '🚀', cost: 320, rarity: 'legend', hidden: true, teaser: '아주 아주 먼 곳', gradient: 'from-slate-900 via-indigo-800 to-fuchsia-700' },
 
   // ── 반짝임 (effects) ──────────────────────────────────────────────
-  { id: 'fx_sparkle', slot: 'effect', name: '반짝반짝', emoji: '✨', cost: 50, rarity: 'common' },
-  { id: 'fx_hearts', slot: 'effect', name: '하트 뿅뿅', emoji: '💖', cost: 55, rarity: 'common' },
-  { id: 'fx_stars', slot: 'effect', name: '별가루', emoji: '🌟', cost: 90, rarity: 'rare' },
-  { id: 'fx_music', slot: 'effect', name: '음표', emoji: '🎵', cost: 70, rarity: 'rare' },
-  { id: 'fx_fire', slot: 'effect', name: '불꽃', emoji: '🔥', cost: 160, rarity: 'epic' },
-  { id: 'fx_galaxy', slot: 'effect', name: '은하수', emoji: '💫', cost: 280, rarity: 'legend', hidden: true, teaser: '밤하늘에 흐르는 것' },
+  { id: 'fx_sparkle', slot: 'effect', motion: 'float', name: '반짝반짝', emoji: '✨', cost: 50, rarity: 'common' },
+  { id: 'fx_hearts', slot: 'effect', motion: 'float', name: '하트 뿅뿅', emoji: '💖', cost: 55, rarity: 'common' },
+  { id: 'fx_stars', slot: 'effect', motion: 'float', name: '별가루', emoji: '🌟', cost: 90, rarity: 'rare' },
+  { id: 'fx_music', slot: 'effect', motion: 'float', name: '음표', emoji: '🎵', cost: 70, rarity: 'rare' },
+  { id: 'fx_fire', slot: 'effect', motion: 'float', name: '불꽃', emoji: '🔥', cost: 160, rarity: 'epic' },
+  { id: 'fx_galaxy', slot: 'effect', motion: 'float', name: '은하수', emoji: '💫', cost: 280, rarity: 'legend', hidden: true, teaser: '밤하늘에 흐르는 것' },
+
+  // ── 따라다니는 친구 (roam the stage on their own) ──────────────────
+  { id: 'comp_bee', slot: 'companion', name: '붕붕 꿀벌', emoji: '🐝', cost: 60, rarity: 'common', motion: 'fly' },
+  { id: 'comp_bird', slot: 'companion', name: '작은 새', emoji: '🐦', cost: 75, rarity: 'rare', motion: 'fly' },
+  { id: 'comp_ladybug', slot: 'companion', name: '무당벌레', emoji: '🐞', cost: 55, rarity: 'common', motion: 'hop' },
+  { id: 'comp_bunny', slot: 'companion', name: '깡총 토끼', emoji: '🐇', cost: 85, rarity: 'rare', motion: 'hop' },
+  { id: 'comp_fish', slot: 'companion', name: '헤엄 물고기', emoji: '🐠', cost: 80, rarity: 'rare', motion: 'fly' },
+  { id: 'comp_moon', slot: 'companion', name: '빙글 달님', emoji: '🌙', cost: 120, rarity: 'epic', motion: 'orbit' },
+  { id: 'comp_star', slot: 'companion', name: '빙글 별님', emoji: '⭐', cost: 110, rarity: 'epic', motion: 'orbit' },
+  { id: 'comp_dragonfly', slot: 'companion', name: '잠자리', emoji: '🦋', cost: 70, rarity: 'common', motion: 'fly' },
+  { id: 'comp_ufo', slot: 'companion', name: '반짝 UFO', emoji: '🛸', cost: 350, rarity: 'legend', motion: 'fly', hidden: true, teaser: '하늘을 빙빙 돌아요' },
 ];
 
 export function itemById(id: string | null | undefined): ShopItem | undefined {
