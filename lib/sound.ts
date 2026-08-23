@@ -83,3 +83,21 @@ export function playSoftDown() {
   tone(ctx, 392, now, 0.18, 0.1, 'sine');
   tone(ctx, 330, now + 0.1, 0.22, 0.09, 'sine');
 }
+
+/** Short two-note blip — for a diary draft being tucked away. */
+export function playSaveBlip() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  tone(ctx, 587.33, now, 0.12, 0.1, 'triangle'); // D5
+  tone(ctx, 784, now + 0.08, 0.16, 0.1, 'triangle'); // G5
+}
+
+/** Sparkly flourish — for finishing a diary entry. */
+export function playSparkle() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const notes = [659.25, 880, 1174.66, 1567.98]; // E5 A5 D6 G6
+  notes.forEach((f, i) => tone(ctx, f, now + i * 0.07, 0.3, 0.12, 'triangle'));
+}

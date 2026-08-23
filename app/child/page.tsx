@@ -15,7 +15,7 @@ import HeartHistorySheet from '@/components/HeartHistorySheet';
 import EmojiPicker from '@/components/EmojiPicker';
 import NumberStepper from '@/components/NumberStepper';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
-import { playChime, playSend, playSoftDown } from '@/lib/sound';
+import { playChime, playPop, playSend, playSoftDown } from '@/lib/sound';
 import {
   getChildData,
   buyCoupon,
@@ -40,6 +40,11 @@ const TABS = [
   { id: 'history', label: '기록', icon: '📜' },
 ];
 const TAB_IDS = TABS.map((t) => t.id);
+
+// 튼튼일기 lives on its own route (/diary), so it's a nav entry only — it is
+// deliberately NOT part of TABS/TAB_IDS, which drive the SwipeableViews panels.
+const DIARY_TAB_ID = 'diary';
+const NAV_ITEMS = [...TABS, { id: DIARY_TAB_ID, label: '튼튼일기', icon: '📔' }];
 
 interface ShopItem {
   id: string;
@@ -850,7 +855,19 @@ function ChildContent() {
         ]}
       </SwipeableViews>
 
-      <TabBar items={TABS} activeId={activeTab} onChange={setActiveTab} accentColor="#db2777" />
+      <TabBar
+        items={NAV_ITEMS}
+        activeId={activeTab}
+        onChange={(id) => {
+          if (id === DIARY_TAB_ID) {
+            playPop();
+            router.push('/diary');
+            return;
+          }
+          setActiveTab(id);
+        }}
+        accentColor="#db2777"
+      />
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
 
       {sheetOpen && (

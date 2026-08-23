@@ -177,6 +177,40 @@ export async function initializeDatabase() {
       );
     `;
 
+    // ── 튼튼일기 (diary) ──────────────────────────────────────────────
+    // Self-contained feature; no existing table is altered. user_id is UUID
+    // to match child_account.id (this app has no INTEGER-keyed users table).
+    // UNIQUE(user_id, diary_date) enforces one diary per child per day, so
+    // saving is an upsert rather than an ever-growing pile of rows.
+    await sql`
+      CREATE TABLE IF NOT EXISTS diaries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+        diary_date DATE NOT NULL,
+        mood VARCHAR(20),
+        title VARCHAR(100),
+        content TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, diary_date)
+      );
+    `;
+
+    // Photos live in their own table so a diary row stays small when read for
+    // lists/calendars. image_data holds a resized base64 data URL — the same
+    // storage approach already used for child_account.photo_data and
+    // mission_requests.photo_data (this project has no blob/object storage).
+    await sql`
+      CREATE TABLE IF NOT EXISTS diary_images (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        diary_id UUID NOT NULL REFERENCES diaries(id) ON DELETE CASCADE,
+        image_data TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     console.log('✓ Database tables initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

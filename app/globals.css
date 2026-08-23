@@ -57,6 +57,27 @@ button {
   animation: sheet-up 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
+/* 튼튼일기: full-screen confirmation when a diary is completed. */
+@keyframes stamp-in {
+  0% { transform: scale(0.3) rotate(-14deg); opacity: 0; }
+  55% { transform: scale(1.12) rotate(4deg); opacity: 1; }
+  75% { transform: scale(0.97) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.animate-stamp-in {
+  animation: stamp-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes sprout {
+  0% { transform: translateY(6px) scale(0.9); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.animate-sprout {
+  animation: sprout 0.4s ease-out both;
+}
+
 @supports (padding: max(0px)) {
   .safe-bottom {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
