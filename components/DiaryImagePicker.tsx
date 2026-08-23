@@ -87,7 +87,7 @@ export default function DiaryImagePicker({ images, onChange }: DiaryImagePickerP
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={isBusy}
-          className="w-full rounded-2xl border-2 border-dashed border-black/10 py-3.5 text-[14px] font-semibold text-[#8e8e93] transition-colors hover:bg-black/[0.02] active:scale-[0.99] disabled:opacity-50"
+          className="w-full rounded-2xl border-2 border-dashed border-black/10 py-3.5 text-[14px] font-semibold text-[#8e8e93] transition-colors active:scale-[0.99] disabled:opacity-50"
         >
           {isBusy ? '불러오는 중...' : `📷 사진 넣기 (${images.length}/${MAX_DIARY_IMAGES})`}
         </button>

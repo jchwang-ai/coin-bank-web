@@ -3,6 +3,7 @@
 import { sql } from '@vercel/postgres';
 import { cookies } from 'next/headers';
 import { MAX_DIARY_IMAGES, MAX_TITLE_LENGTH, calculateStreak, isValidDateKey } from '@/lib/diary';
+import { BUDDY_ANIMALS, levelFor } from '@/lib/diaryPet';
 
 /**
  * Resolves the diary owner from the httpOnly session cookie — never from a
@@ -43,7 +44,7 @@ export async function getDiaryOverview() {
   try {
     const userId = await requireChildId();
 
-    const [recent, completedDates, monthCount] = await Promise.all([
+    const [recent, completedDates, monthCount, pet, totalCompleted] = await Promise.all([
       sql`
         SELECT d.id,
                to_char(d.diary_date, 'YYYY-MM-DD') AS diary_date,
@@ -70,6 +71,8 @@ export async function getDiaryOverview() {
           AND status = 'completed'
           AND date_trunc('month', diary_date) = date_trunc('month', CURRENT_DATE)
       `,
+      sql`SELECT animal FROM diary_pets WHERE user_id = ${userId} LIMIT 1`,
+      sql`SELECT COUNT(*) AS count FROM diaries WHERE user_id = ${userId} AND status = 'completed'`,
     ]);
 
     const recentRows = recent.rows as any[];
@@ -86,6 +89,8 @@ export async function getDiaryOverview() {
       }, {}),
       monthCount: Number((monthCount.rows[0] as any).count) || 0,
       streak: calculateStreak((completedDates.rows as any[]).map((r) => r.diary_date)),
+      petAnimal: pet.rows.length ? ((pet.rows[0] as any).animal as string) : null,
+      totalCompleted: Number((totalCompleted.rows[0] as any).count) || 0,
     };
   } catch (error) {
     console.error('Error fetching diary overview:', error);
@@ -157,6 +162,13 @@ export async function saveDiary(input: {
     const userId = await requireChildId();
     const images = (input.images || []).slice(0, MAX_DIARY_IMAGES);
 
+    // Buddy growth is derived from the completed count, so to tell whether
+    // *this* save levelled the buddy up we compare the count before/after.
+    const before = await sql`
+      SELECT COUNT(*) AS count FROM diaries WHERE user_id = ${userId} AND status = 'completed'
+    `;
+    const countBefore = Number((before.rows[0] as any).count) || 0;
+
     const saved = await sql`
       INSERT INTO diaries (user_id, diary_date, mood, title, content, status)
       VALUES (
@@ -183,9 +195,44 @@ export async function saveDiary(input: {
       `;
     }
 
-    return { success: true, id: diaryId, status };
+    const after = await sql`
+      SELECT COUNT(*) AS count FROM diaries WHERE user_id = ${userId} AND status = 'completed'
+    `;
+    const countAfter = Number((after.rows[0] as any).count) || 0;
+
+    return {
+      success: true,
+      id: diaryId,
+      status,
+      totalCompleted: countAfter,
+      leveledUp: levelFor(countAfter) > levelFor(countBefore),
+      // A milestone sticker newly unlocked by this save, if any.
+      newSticker: countAfter > countBefore ? countAfter : null,
+    };
   } catch (error) {
     console.error('Error saving diary:', error);
+    throw error;
+  }
+}
+
+/** Picks (or changes) the diary buddy animal. */
+export async function setDiaryPet(animal: string) {
+  try {
+    if (!BUDDY_ANIMALS.some((a) => a.id === animal)) {
+      throw new Error('그런 친구는 없어요');
+    }
+    const userId = await requireChildId();
+
+    await sql`
+      INSERT INTO diary_pets (user_id, animal)
+      VALUES (${userId}, ${animal})
+      ON CONFLICT (user_id) DO UPDATE
+        SET animal = EXCLUDED.animal, updated_at = CURRENT_TIMESTAMP
+    `;
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error setting diary pet:', error);
     throw error;
   }
 }

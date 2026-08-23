@@ -211,6 +211,18 @@ export async function initializeDatabase() {
       );
     `;
 
+    // The diary buddy stores only which animal the child picked — its growth
+    // stage and earned stickers are derived from the completed-diary count
+    // (see lib/diaryPet.ts), so there's no progress counter to drift.
+    await sql`
+      CREATE TABLE IF NOT EXISTS diary_pets (
+        user_id UUID PRIMARY KEY REFERENCES child_account(id) ON DELETE CASCADE,
+        animal VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     console.log('✓ Database tables initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

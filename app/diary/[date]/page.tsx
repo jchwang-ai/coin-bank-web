@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Toast from '@/components/Toast';
+import EmojiBurst from '@/components/EmojiBurst';
 import MoodPicker from '@/components/MoodPicker';
 import DiaryPromptCard from '@/components/DiaryPromptCard';
 import DiaryImagePicker from '@/components/DiaryImagePicker';
@@ -44,6 +45,7 @@ export default function DiaryDatePage() {
 
   const [toast, setToast] = useState('');
   const [celebrate, setCelebrate] = useState(false);
+  const [leveledUp, setLeveledUp] = useState(false);
   const hydrated = useRef(false);
 
   const localKey = `diary-draft:${dateKey}`;
@@ -151,12 +153,14 @@ export default function DiaryDatePage() {
 
       if (nextStatus === 'completed') {
         playSparkle();
+        setLeveledUp(!!result.leveledUp);
         setCelebrate(true);
         setMode('view');
+        // A level-up gets a longer beat to enjoy before heading back.
         setTimeout(() => {
           setCelebrate(false);
           router.push('/diary');
-        }, 1600);
+        }, result.leveledUp ? 2600 : 1600);
       } else {
         playSaveBlip();
         setToast('일기를 저장했어요! 🌱');
@@ -191,7 +195,7 @@ export default function DiaryDatePage() {
 
   if (notFound) {
     return (
-      <div className="mx-auto max-w-[720px] px-5 pt-24 text-center">
+      <div className="mx-auto max-w-lg px-5 pt-24 text-center">
         <p className="text-4xl">🤔</p>
         <p className="mt-3 text-[16px] font-semibold text-[#1c1c1e]">볼 수 없는 날짜예요</p>
         <p className="mt-1 text-[13px] text-[#8e8e93]">오늘이나 지난 날짜만 쓸 수 있어요.</p>
@@ -210,7 +214,7 @@ export default function DiaryDatePage() {
 
   return (
     <div className="min-h-screen pb-28">
-      <div className="mx-auto w-full max-w-[720px] px-5 pt-6 safe-top">
+      <div className="mx-auto w-full max-w-lg px-5 pt-6 safe-top">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -305,7 +309,7 @@ export default function DiaryDatePage() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="오늘 어떤 일이 있었나요? 기억에 남는 일을 자유롭게 적어보세요."
-                className="min-h-[260px] w-full resize-y rounded-2xl bg-white px-4 py-3.5 text-[17px] leading-relaxed shadow-sm ring-1 ring-black/5 focus:outline-none focus:ring-2 focus:ring-teal-300 sm:min-h-[300px]"
+                className="min-h-[260px] w-full resize-y rounded-2xl bg-white px-4 py-3.5 text-[17px] leading-relaxed shadow-sm ring-1 ring-black/5 focus:outline-none focus:ring-2 focus:ring-teal-300"
               />
               <p className="mt-1 pr-1 text-right text-[11px] text-[#8e8e93]">{charCount}자</p>
             </section>
@@ -323,7 +327,7 @@ export default function DiaryDatePage() {
       {/* Sticky save bar (write mode only) */}
       {mode === 'edit' && (
         <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-black/5 bg-white/85 backdrop-blur-xl safe-bottom">
-          <div className="mx-auto grid max-w-[720px] grid-cols-2 gap-3 px-5 py-3">
+          <div className="mx-auto grid max-w-lg grid-cols-2 gap-3 px-5 py-3">
             <button
               onClick={() => handleSave('draft')}
               disabled={isSaving}
@@ -344,11 +348,28 @@ export default function DiaryDatePage() {
 
       {/* Completion celebration */}
       {celebrate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="animate-stamp-in rounded-3xl bg-white px-8 py-7 text-center shadow-2xl">
-            <p className="text-6xl">🌱</p>
-            <p className="mt-3 text-[19px] font-bold text-[#1c1c1e]">일기를 저장했어요!</p>
-            <p className="mt-1 text-[13px] text-[#8e8e93]">오늘도 잘했어요 ✨</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6 backdrop-blur-sm">
+          <div className="animate-stamp-in relative w-full max-w-sm overflow-hidden rounded-3xl bg-white px-8 py-7 text-center shadow-2xl">
+            {leveledUp ? (
+              <>
+                <p className="text-6xl">🎉</p>
+                <p className="mt-3 text-[20px] font-bold text-[#1c1c1e]">친구가 자랐어요!</p>
+                <p className="mt-1 text-[13px] text-[#8e8e93]">
+                  일기를 꾸준히 써서 한 단계 성장했어요 ✨
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-6xl">🌱</p>
+                <p className="mt-3 text-[19px] font-bold text-[#1c1c1e]">일기를 저장했어요!</p>
+                <p className="mt-1 text-[13px] text-[#8e8e93]">오늘도 잘했어요 ✨</p>
+              </>
+            )}
+            <EmojiBurst
+              trigger={celebrate ? 1 : 0}
+              emojis={leveledUp ? ['🎉', '⭐', '🌟', '✨'] : ['🌱', '✨', '📔']}
+              count={leveledUp ? 16 : 10}
+            />
           </div>
         </div>
       )}

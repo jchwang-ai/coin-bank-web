@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react';
 import Toast from '@/components/Toast';
 import EmojiBurst from '@/components/EmojiBurst';
 import DiaryCalendar, { DiaryMark } from '@/components/DiaryCalendar';
+import DiaryBuddy from '@/components/DiaryBuddy';
+import BuddyPickerSheet from '@/components/BuddyPickerSheet';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
-import { playPop } from '@/lib/sound';
+import { playChime, playPop } from '@/lib/sound';
 import { formatCardDate, isToday, moodOf, todayKey } from '@/lib/diary';
-import { getDiaryOverview, DiaryListItem } from './actions';
+import { getDiaryOverview, setDiaryPet, DiaryListItem } from './actions';
 
 export default function DiaryPage() {
   const router = useRouter();
@@ -22,6 +24,9 @@ export default function DiaryPage() {
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [toast, setToast] = useState('');
   const [burst, setBurst] = useState(0);
+  const [petAnimal, setPetAnimal] = useState<string | null>(null);
+  const [totalCompleted, setTotalCompleted] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +37,8 @@ export default function DiaryPage() {
         setMarks(data.marks);
         setMonthCount(data.monthCount);
         setStreak(data.streak);
+        setPetAnimal(data.petAnimal);
+        setTotalCompleted(data.totalCompleted);
         // Small welcome-back celebration when today is already done.
         const today = todayKey();
         if (data.recent.some((d) => d.diary_date === today && d.status === 'completed')) {
@@ -64,13 +71,22 @@ export default function DiaryPage() {
     router.push(`/diary/${dateKey}`);
   };
 
+  const handlePickBuddy = async (animalId: string) => {
+    await setDiaryPet(animalId);
+    setPetAnimal(animalId);
+    setPickerOpen(false);
+    playChime();
+    setBurst((b) => b + 1);
+    setToast('새 친구가 생겼어요! 🌱');
+  };
+
   if (isLoading) {
     return <div className="pt-24 text-center text-[#8e8e93]">불러오는 중...</div>;
   }
 
   return (
     <div className="min-h-screen pb-16">
-      <div className="mx-auto w-full max-w-[720px] px-5 pt-6 safe-top">
+      <div className="mx-auto w-full max-w-lg px-5 pt-6 safe-top">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
@@ -84,6 +100,16 @@ export default function DiaryPage() {
             돌아가기
           </button>
         </div>
+
+        {/* Growing buddy — the main motivation hook */}
+        <DiaryBuddy
+          animalId={petAnimal}
+          completedCount={totalCompleted}
+          onPick={() => {
+            playPop();
+            setPickerOpen(true);
+          }}
+        />
 
         {/* Streak + this month */}
         <div className="mb-4 grid grid-cols-2 gap-3">
@@ -103,7 +129,7 @@ export default function DiaryPage() {
         <div className="relative mb-4">
           <button
             onClick={() => openDate(today)}
-            className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-400 via-teal-400 to-sky-400 p-6 text-left shadow-lg shadow-teal-500/20 transition-transform hover:-translate-y-0.5 active:scale-[0.98]"
+            className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-400 via-teal-400 to-sky-400 p-6 text-left shadow-lg shadow-teal-500/20 transition-transform active:scale-[0.98]"
           >
             <div className="absolute -right-6 -top-8 text-8xl opacity-20">📔</div>
             <p className="relative text-[13px] font-medium text-white/80">{formatCardDate(today)}</p>
@@ -151,7 +177,7 @@ export default function DiaryPage() {
                   key={d.id}
                   onClick={() => openDate(d.diary_date)}
                   style={{ animationDelay: `${Math.min(idx, 8) * 40}ms` }}
-                  className="animate-sprout flex w-full gap-3 rounded-2xl border border-black/5 bg-white p-4 text-left shadow-sm transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
+                  className="animate-sprout flex w-full gap-3 rounded-2xl border border-black/5 bg-white p-4 text-left shadow-sm transition-transform active:scale-[0.99]"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1.5 text-[12px] font-medium text-[#8e8e93]">
@@ -195,6 +221,14 @@ export default function DiaryPage() {
           </div>
         )}
       </div>
+
+      {pickerOpen && (
+        <BuddyPickerSheet
+          current={petAnimal}
+          onClose={() => setPickerOpen(false)}
+          onSelect={handlePickBuddy}
+        />
+      )}
 
       <Toast message={toast} visible={!!toast} onClose={() => setToast('')} />
     </div>
