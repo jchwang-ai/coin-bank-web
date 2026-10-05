@@ -1,6 +1,7 @@
 'use client';
 
 import { RARITY, ShopItem } from '@/lib/characterShop';
+import { ItemIcon } from './CreatureArt';
 
 interface ItemRevealOverlayProps {
   item: ShopItem;
@@ -77,7 +78,7 @@ export default function ItemRevealOverlay({ item, wasHidden, onDone }: ItemRevea
         <div
           className={`mx-auto mt-4 flex h-28 w-28 items-center justify-center rounded-3xl bg-gradient-to-br from-white to-black/[0.04] ring-4 ${rarity.ring} shadow-xl ${rarity.glow}`}
         >
-          <span className="text-6xl leading-none drop-shadow">{item.emoji}</span>
+          <ItemIcon item={item} size={64} className="drop-shadow" />
         </div>
 
         <span
@@ -87,7 +88,12 @@ export default function ItemRevealOverlay({ item, wasHidden, onDone }: ItemRevea
         </span>
 
         <p className="mt-2 text-[20px] font-bold leading-tight text-[#1c1c1e]">{item.name}</p>
-        <p className="mt-1 text-[13px] text-[#8e8e93]">바로 입혀줬어요! 💎 {item.cost} 사용</p>
+        <p className="mt-1 text-[13px] text-[#8e8e93]">
+          {item.slot === 'character' || item.slot === 'companion'
+            ? '무대에 새 친구가 놀러 왔어요!'
+            : '바로 입혀줬어요!'}{' '}
+          💎 {item.cost} 사용
+        </p>
 
         <button
           onClick={onDone}

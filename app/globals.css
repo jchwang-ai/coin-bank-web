@@ -229,6 +229,254 @@ button {
 }
 .animate-tap-spin { animation: tap-spin 0.65s ease-out both; }
 
+/* ══ Living stage v2: actors driven by lib/stageWorld.ts ═══════════════
+   The engine writes position (transform) and data-pose / data-act on each
+   .cr-root; everything below reacts to those attributes. Layers:
+   .cr-root (position) > .cr-face (facing + tilt, JS) > .cr-act (one-shot
+   actions) > .cr-loco (looping gait) > .cr-art (drawing). */
+
+.cr-root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  touch-action: none;
+  cursor: grab;
+}
+.cr-face, .cr-act, .cr-loco {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+}
+.cr-art { position: absolute; inset: 0; }
+.cr-svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
+.cr-emoji {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.9em;
+  line-height: 1;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.18));
+}
+.cr-acc {
+  position: absolute;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+}
+.cr-foot {
+  position: absolute;
+  bottom: 0;
+  width: 0.2em;
+  height: 0.12em;
+  border-radius: 999px;
+  box-shadow: inset 0 -0.02em 0 rgba(0, 0, 0, 0.15);
+}
+.cr-foot-l { left: 30%; }
+.cr-foot-r { right: 30%; }
+.cr-aura {
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 224, 102, 0.75), rgba(255, 212, 59, 0.25) 45%, transparent 70%);
+  animation: aura-pulse 1.6s ease-in-out infinite;
+}
+@keyframes aura-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.7; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+
+.cr-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0) 70%);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Gaits */
+[data-pose="idle"] .cr-loco  { animation: cr-breathe 2.4s ease-in-out infinite; }
+[data-pose="walk"] .cr-loco  { animation: cr-waddle 0.52s ease-in-out infinite; }
+[data-pose="run"] .cr-loco   { animation: cr-waddle 0.28s ease-in-out infinite; }
+[data-pose="crawl"] .cr-loco { animation: cr-crawl 1.1s ease-in-out infinite; }
+[data-pose="sleep"] .cr-loco { animation: cr-sleep 3s ease-in-out infinite; }
+[data-pose="held"] .cr-loco  { animation: cr-dangle 0.7s ease-in-out infinite; transform-origin: 50% 0%; }
+[data-pose="eat"] .cr-loco   { animation: cr-chomp 0.32s ease-in-out infinite; }
+[data-pose="dance"] .cr-loco { animation: cr-dance 0.6s ease-in-out infinite; }
+[data-pose="swim"] .cr-loco  { animation: cr-swim 1.6s ease-in-out infinite; }
+[data-pose="hover"] .cr-loco { animation: cr-hover 0.5s ease-in-out infinite; }
+
+@keyframes cr-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.97); } }
+@keyframes cr-waddle {
+  0%, 100% { transform: rotate(-5deg) translateY(0); }
+  25%      { transform: rotate(0deg) translateY(-6%); }
+  50%      { transform: rotate(5deg) translateY(0); }
+  75%      { transform: rotate(0deg) translateY(-6%); }
+}
+@keyframes cr-crawl { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.08, 0.94); } }
+@keyframes cr-sleep {
+  0%, 100% { transform: rotate(-8deg) scale(1, 0.94); }
+  50%      { transform: rotate(-8deg) scale(1.03, 0.9); }
+}
+@keyframes cr-dangle { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
+@keyframes cr-chomp { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.08, 0.88); } }
+@keyframes cr-dance {
+  0%   { transform: rotate(-12deg) translateY(0); }
+  25%  { transform: rotate(0deg) translateY(-14%); }
+  50%  { transform: rotate(12deg) translateY(0); }
+  75%  { transform: rotate(0deg) translateY(-14%); }
+  100% { transform: rotate(-12deg) translateY(0); }
+}
+@keyframes cr-swim { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes cr-hover { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
+
+/* Little feet step while walking */
+[data-pose="walk"] .cr-foot-l, [data-pose="dance"] .cr-foot-l { animation: cr-step 0.52s ease-in-out infinite; }
+[data-pose="walk"] .cr-foot-r, [data-pose="dance"] .cr-foot-r { animation: cr-step 0.52s ease-in-out -0.26s infinite; }
+[data-pose="run"] .cr-foot-l { animation: cr-step 0.28s ease-in-out infinite; }
+[data-pose="run"] .cr-foot-r { animation: cr-step 0.28s ease-in-out -0.14s infinite; }
+@keyframes cr-step { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-45%); } }
+
+/* Birds: folded wing on the body by default; flap / glide when flying */
+.bd-wing { transform-origin: 54px 60px; transition: transform 0.2s ease-out, opacity 0.2s; }
+.bd-near { transform: rotate(-4deg) scale(0.82, -0.32); }
+.bd-far  { opacity: 0; }
+.bd-legs { transition: opacity 0.15s; }
+.bd-head { transform-origin: 70px 58px; }
+.bd-tail { transform-origin: 38px 64px; }
+.bd-eye  { transform-box: fill-box; transform-origin: center; animation: bd-blink 4.5s infinite; }
+.bd-flame { transform-origin: 38px 64px; animation: bd-flame 0.45s ease-in-out infinite alternate; }
+
+[data-pose="fly"] .bd-wing, [data-pose="held"] .bd-wing { animation: bd-flap var(--flap, 0.26s) ease-in-out infinite; }
+[data-pose="held"] .bd-wing { animation-duration: 0.12s; }
+[data-pose="fly"] .bd-far, [data-pose="held"] .bd-far { animation-delay: -0.03s; opacity: 0.9; }
+[data-pose="glide"] .bd-wing { transform: scaleY(0.28) rotate(3deg); }
+[data-pose="glide"] .bd-far  { opacity: 0.9; }
+[data-pose="fly"] .bd-legs, [data-pose="glide"] .bd-legs, [data-pose="held"] .bd-legs { opacity: 0; }
+[data-pose="peck"] .bd-head { animation: bd-peck 0.55s ease-in-out infinite; }
+[data-pose="perch"] .bd-tail { animation: bd-tail 1.8s ease-in-out infinite; }
+[data-pose="icon"] .bd-wing { transform: scaleY(0.55); }
+[data-pose="icon"] .bd-far  { opacity: 0.9; }
+
+@keyframes bd-flap {
+  0%, 100% { transform: rotate(-6deg) scaleY(1); }
+  50%      { transform: rotate(8deg) scaleY(-0.85); }
+}
+@keyframes bd-peck { 0%, 55%, 100% { transform: rotate(0deg); } 75% { transform: rotate(32deg); } }
+@keyframes bd-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+@keyframes bd-tail { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-9deg); } }
+@keyframes bd-flame {
+  from { transform: scale(1, 1) skewY(0deg); }
+  to   { transform: scale(1.1, 1.06) skewY(-5deg); }
+}
+
+/* Butterflies: wings close toward the body (fast in flight, lazy at rest) */
+.bf-wing { transform-origin: 50px 50px; animation: bf-flap 1.8s ease-in-out infinite; }
+[data-pose="fly"] .bf-wing, [data-pose="held"] .bf-wing { animation-duration: 0.22s; }
+[data-pose="icon"] .bf-wing { animation: none; }
+@keyframes bf-flap { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.16); } }
+
+/* Bees / dragonflies / fireflies: buzzing blur wings */
+.bz-wing { animation: bz-buzz 0.05s linear infinite alternate; }
+.bz-wing2 { animation-delay: -0.025s; }
+[data-pose="perch"] .bz-wing, [data-pose="icon"] .bz-wing { animation: none; }
+@keyframes bz-buzz { from { transform: scaleY(1); } to { transform: scaleY(0.35); } }
+.ff-glow { transform-box: fill-box; transform-origin: center; animation: ff-glow 1.6s ease-in-out infinite; }
+@keyframes ff-glow { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+
+/* Fish wag their tail inside the bubble */
+.fs-tail { transform-origin: 34px 52px; animation: fs-tail 0.45s ease-in-out infinite alternate; }
+.fs-fish { animation: fs-bob 2.2s ease-in-out infinite; }
+[data-pose="icon"] .fs-tail, [data-pose="icon"] .fs-fish { animation: none; }
+@keyframes fs-tail { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+@keyframes fs-bob { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(3px, -3px); } }
+
+/* One-shot actions (data-act) */
+[data-act="spin"] .cr-act   { animation: act-spin 0.7s ease-in-out both; transform-origin: 50% 60%; }
+[data-act="flip"] .cr-act   { animation: act-flip 0.8s ease-in-out both; transform-origin: 50% 50%; }
+[data-act="loop"] .cr-act   { animation: act-flip 0.9s ease-in-out both; transform-origin: 50% 50%; }
+[data-act="wiggle"] .cr-act { animation: idle-wiggle 0.8s ease-in-out both; }
+[data-act="tada"] .cr-act   { animation: act-tada 0.9s ease-in-out both; }
+[data-act="giant"] .cr-act  { animation: act-giant 2.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+[data-act="squash"] .cr-act { animation: act-squash 0.45s ease-out both; }
+[data-act="sing"] .cr-act   { animation: act-sing 0.5s ease-in-out 4; }
+[data-act="kick"] .cr-act   { animation: act-kick 0.35s ease-out both; }
+[data-act="shake"] .cr-act  { animation: shake 0.5s ease-in-out both; }
+[data-act="appear"] .cr-act { animation: act-appear 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes act-spin { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(200deg) scale(1.15); } 100% { transform: rotate(360deg) scale(1); } }
+@keyframes act-flip { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+@keyframes act-tada {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  15%      { transform: scale(0.9) rotate(-4deg); }
+  35%, 65% { transform: scale(1.18) rotate(5deg); }
+  50%, 80% { transform: scale(1.18) rotate(-5deg); }
+}
+@keyframes act-giant {
+  0%   { transform: scale(1); }
+  25%  { transform: scale(1.9); }
+  80%  { transform: scale(1.85); }
+  100% { transform: scale(1); }
+}
+@keyframes act-squash { 0% { transform: scale(1.3, 0.7); } 60% { transform: scale(0.92, 1.08); } 100% { transform: scale(1, 1); } }
+@keyframes act-sing { 0%, 100% { transform: scale(1) rotate(-4deg); } 50% { transform: scale(1.08, 1.12) rotate(4deg); } }
+@keyframes act-kick { 0% { transform: rotate(0deg); } 40% { transform: rotate(-14deg) translateX(8%); } 100% { transform: rotate(0deg); } }
+@keyframes act-appear { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+
+/* Particles: one generic keyframe driven by per-particle variables */
+.fx {
+  position: absolute;
+  pointer-events: none;
+  line-height: 1;
+  animation-name: fx-move;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+@keyframes fx-move {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  12%  { opacity: 1; transform: translate(-50%, -50%) translate(calc(var(--dx) * 0.12), calc(var(--dy) * 0.12)) scale(1.1); }
+  100% { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(var(--s1, 1)) rotate(var(--rot, 0deg)); opacity: 0; }
+}
+.fx-emote {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation-name: fx-emote;
+}
+@keyframes fx-emote {
+  0%   { transform: translate(-50%, -100%) translateY(6px) scale(0.4); opacity: 0; }
+  20%  { transform: translate(-50%, -100%) translateY(-4px) scale(1.12); opacity: 1; }
+  75%  { transform: translate(-50%, -100%) translateY(-8px) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -100%) translateY(-18px) scale(0.9); opacity: 0; }
+}
+.fx-ripple {
+  width: 20px;
+  height: 10px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  animation-name: fx-ripple;
+}
+@keyframes fx-ripple {
+  0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+}
+
+/* Party lights and night sky */
+.stage-disco {
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(from 0deg, rgba(255, 0, 128, 0.35), rgba(255, 200, 0, 0.35), rgba(0, 220, 255, 0.35), rgba(140, 80, 255, 0.35), rgba(255, 0, 128, 0.35));
+  opacity: 0.55;
+  animation: orbit-spin 2.4s linear infinite;
+  pointer-events: none;
+}
+@keyframes twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+.animate-twinkle { animation: twinkle 2.2s ease-in-out infinite; }
+
 @supports (padding: max(0px)) {
   .safe-bottom {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));

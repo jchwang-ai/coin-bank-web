@@ -46,6 +46,7 @@ export default function DiaryDatePage() {
   const [toast, setToast] = useState('');
   const [celebrate, setCelebrate] = useState(false);
   const [leveledUp, setLeveledUp] = useState(false);
+  const [applesEarned, setApplesEarned] = useState(0);
   const hydrated = useRef(false);
 
   const localKey = `diary-draft:${dateKey}`;
@@ -154,13 +155,14 @@ export default function DiaryDatePage() {
       if (nextStatus === 'completed') {
         playSparkle();
         setLeveledUp(!!result.leveledUp);
+        setApplesEarned(result.applesEarned || 0);
         setCelebrate(true);
         setMode('view');
-        // A level-up gets a longer beat to enjoy before heading back.
+        // A level-up (or a food reward) gets a longer beat before heading back.
         setTimeout(() => {
           setCelebrate(false);
           router.push('/diary');
-        }, result.leveledUp ? 2600 : 1600);
+        }, result.leveledUp ? 2600 : result.applesEarned ? 2300 : 1600);
       } else {
         playSaveBlip();
         setToast('일기를 저장했어요! 🌱');
@@ -364,6 +366,11 @@ export default function DiaryDatePage() {
                 <p className="mt-3 text-[19px] font-bold text-[#1c1c1e]">일기를 저장했어요!</p>
                 <p className="mt-1 text-[13px] text-[#8e8e93]">오늘도 잘했어요 ✨</p>
               </>
+            )}
+            {applesEarned > 0 && (
+              <p className="animate-pop-in mt-3 rounded-2xl bg-red-50 px-3 py-2 text-[14px] font-bold text-red-500">
+                🍎 사과 {applesEarned}개를 받았어요! 친구에게 주러 가요
+              </p>
             )}
             <EmojiBurst
               trigger={celebrate ? 1 : 0}

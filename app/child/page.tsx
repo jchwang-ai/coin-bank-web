@@ -14,6 +14,7 @@ import ReorderableList from '@/components/ReorderableList';
 import HeartHistorySheet from '@/components/HeartHistorySheet';
 import EmojiPicker from '@/components/EmojiPicker';
 import NumberStepper from '@/components/NumberStepper';
+import { hasSeenFeatureIntro } from '@/components/PetNewsOverlay';
 import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playPop, playSend, playSoftDown } from '@/lib/sound';
 import {
@@ -144,6 +145,11 @@ function ChildContent() {
   const [myShopRequests, setMyShopRequests] = useState<MyShopRequest[]>([]);
   const [myMissionProposals, setMyMissionProposals] = useState<MyMissionProposal[]>([]);
   const [toast, setToast] = useState<string>('');
+  // Red dot on 튼튼일기 until the child has seen the new pet features there.
+  const [diaryHasNews, setDiaryHasNews] = useState(false);
+  useEffect(() => {
+    setDiaryHasNews(!hasSeenFeatureIntro());
+  }, []);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMission, setSheetMission] = useState<Mission | undefined>(undefined);
@@ -856,7 +862,7 @@ function ChildContent() {
       </SwipeableViews>
 
       <TabBar
-        items={NAV_ITEMS}
+        items={NAV_ITEMS.map((n) => (n.id === DIARY_TAB_ID && diaryHasNews ? { ...n, badge: 1 } : n))}
         activeId={activeTab}
         onChange={(id) => {
           if (id === DIARY_TAB_ID) {

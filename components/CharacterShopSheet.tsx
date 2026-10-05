@@ -12,6 +12,16 @@ import {
   itemsForSlot,
 } from '@/lib/characterShop';
 import { playPop, playSoftDown } from '@/lib/sound';
+import { ItemIcon } from './CreatureArt';
+
+const MOTION_ICON: Record<string, string> = {
+  fly: '🪽',
+  hop: '👟',
+  walk: '🐾',
+  swim: '🫧',
+  orbit: '🌀',
+  float: '💨',
+};
 
 interface CustomShopItem extends ShopItem {
   rowId: string;
@@ -185,18 +195,18 @@ export default function CharacterShopSheet({
 
                   {item.motion && (
                     <span className="absolute right-1.5 bottom-1.5 text-[9px]" title="움직여요">
-                      {item.motion === 'fly' ? '🪽' : item.motion === 'hop' ? '👟' : item.motion === 'orbit' ? '🌀' : '💨'}
+                      {MOTION_ICON[item.motion] ?? '💨'}
                     </span>
                   )}
 
                   {/* Icon — silhouette while it's a mystery */}
-                  <span
-                    className={`mt-3 text-[34px] leading-none ${
-                      mystery ? 'animate-mystery brightness-0 opacity-40' : ''
-                    } ${!isOwned && !affordable && !mystery ? 'opacity-45 grayscale' : ''}`}
-                  >
-                    {item.emoji}
-                  </span>
+                  <ItemIcon
+                    item={item}
+                    size={34}
+                    className={`mt-3 ${mystery ? 'animate-mystery brightness-0 opacity-40' : ''} ${
+                      !isOwned && !affordable && !mystery ? 'opacity-45 grayscale' : ''
+                    }`}
+                  />
 
                   <span className="line-clamp-1 text-[11px] font-bold text-[#1c1c1e]">
                     {displayName(item, isOwned)}
@@ -210,7 +220,13 @@ export default function CharacterShopSheet({
 
                   {isOwned ? (
                     <span className="text-[10px] font-bold text-emerald-600">
-                      {isWorn ? '입고 있어요' : '눌러서 입기'}
+                      {item.slot === 'character' || item.slot === 'companion'
+                        ? isWorn
+                          ? '함께 놀아요'
+                          : '눌러서 데려오기'
+                        : isWorn
+                          ? '입고 있어요'
+                          : '눌러서 입기'}
                     </span>
                   ) : (
                     <span

@@ -42,14 +42,17 @@ export const RARITY: Record<Rarity, RarityStyle> = {
 /**
  * How an owned item behaves on the character stage.
  *  - undefined : pinned to the character (hats, glasses, held things)
- *  - 'fly'     : roams the whole stage on a wandering path
- *  - 'hop'     : bounces along the ground
+ *  - 'fly'     : flies around the stage (birds flap, butterflies flutter…)
+ *  - 'hop'     : hops along the ground
+ *  - 'walk'    : walks/crawls along the ground
+ *  - 'swim'    : swims through the air in a bubble
  *  - 'orbit'   : circles around the character
  *  - 'float'   : drifts upward and repeats (sparkle-type effects)
  * Rendering is driven by this, NOT by the slot — so a butterfly in the face
- * slot still flies instead of being stuck to the face.
+ * slot still flies instead of being stuck to the face. The exact look and
+ * movement style per creature lives in lib/creatures.ts.
  */
-export type Motion = 'fly' | 'hop' | 'orbit' | 'float';
+export type Motion = 'fly' | 'hop' | 'walk' | 'swim' | 'orbit' | 'float';
 
 export interface ShopItem {
   id: string;
@@ -78,13 +81,19 @@ export interface ShopItem {
  */
 export const SHOP_ITEMS: ShopItem[] = [
   // ── 친구 (extra characters beyond the 8 free ones) ────────────────
-  { id: 'char_dragon', slot: 'character', name: '아기 드래곤', emoji: '🐲', cost: 220, rarity: 'epic' },
-  { id: 'char_axolotl', slot: 'character', name: '우파루파', emoji: '🦎', cost: 150, rarity: 'rare' },
-  { id: 'char_owl', slot: 'character', name: '부엉이', emoji: '🦉', cost: 120, rarity: 'rare' },
-  { id: 'char_hamster', slot: 'character', name: '햄찌', emoji: '🐹', cost: 90, rarity: 'common' },
-  { id: 'char_frog', slot: 'character', name: '개구리', emoji: '🐸', cost: 90, rarity: 'common' },
-  { id: 'char_whale', slot: 'character', name: '아기 고래', emoji: '🐳', cost: 180, rarity: 'epic' },
-  { id: 'char_phoenix', slot: 'character', name: '불꽃새 피닉스', emoji: '🔥', cost: 400, rarity: 'legend', hidden: true, teaser: '전설의 새래요' },
+  // These join the stage *next to* the child's own buddy — they never
+  // replace it.
+  { id: 'char_dragon', slot: 'character', name: '아기 드래곤', emoji: '🐉', cost: 220, rarity: 'epic', motion: 'fly' },
+  { id: 'char_axolotl', slot: 'character', name: '우파루파', emoji: '🦎', cost: 150, rarity: 'rare', motion: 'walk' },
+  { id: 'char_owl', slot: 'character', name: '부엉이', emoji: '🦉', cost: 120, rarity: 'rare', motion: 'fly' },
+  { id: 'char_hamster', slot: 'character', name: '햄찌', emoji: '🐹', cost: 90, rarity: 'common', motion: 'hop' },
+  { id: 'char_frog', slot: 'character', name: '개구리', emoji: '🐸', cost: 90, rarity: 'common', motion: 'hop' },
+  { id: 'char_koala', slot: 'character', name: '코알라', emoji: '🐨', cost: 130, rarity: 'rare', motion: 'walk' },
+  { id: 'char_swan', slot: 'character', name: '하얀 백조', emoji: '🦢', cost: 160, rarity: 'rare', motion: 'walk' },
+  { id: 'char_whale', slot: 'character', name: '아기 고래', emoji: '🐳', cost: 180, rarity: 'epic', motion: 'swim' },
+  { id: 'char_dino', slot: 'character', name: '아기 공룡', emoji: '🦖', cost: 200, rarity: 'epic', motion: 'walk' },
+  { id: 'char_peacock', slot: 'character', name: '공작새', emoji: '🦚', cost: 240, rarity: 'epic', motion: 'walk' },
+  { id: 'char_phoenix', slot: 'character', name: '불꽃새 피닉스', emoji: '🔥', cost: 400, rarity: 'legend', motion: 'fly', hidden: true, teaser: '전설의 새래요' },
 
   // ── 모자 ──────────────────────────────────────────────────────────
   { id: 'hat_party', slot: 'hat', name: '파티 모자', emoji: '🎉', cost: 30, rarity: 'common' },
@@ -127,14 +136,32 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'fx_galaxy', slot: 'effect', motion: 'float', name: '은하수', emoji: '💫', cost: 280, rarity: 'legend', hidden: true, teaser: '밤하늘에 흐르는 것' },
 
   // ── 따라다니는 친구 (roam the stage on their own) ──────────────────
+  // 새 — drawn as real birds that flap, glide, land and peck (lib/creatures.ts)
+  { id: 'comp_sparrow', slot: 'companion', name: '짹짹 참새', emoji: '🐦', cost: 50, rarity: 'common', motion: 'fly' },
+  { id: 'comp_bird', slot: 'companion', name: '파랑새', emoji: '🐦', cost: 75, rarity: 'rare', motion: 'fly' },
+  { id: 'comp_swallow', slot: 'companion', name: '쌩쌩 제비', emoji: '🐦', cost: 85, rarity: 'rare', motion: 'fly' },
+  { id: 'comp_parrot', slot: 'companion', name: '알록달록 앵무새', emoji: '🦜', cost: 110, rarity: 'epic', motion: 'fly' },
+  { id: 'comp_hummingbird', slot: 'companion', name: '반짝 벌새', emoji: '🐦', cost: 140, rarity: 'epic', motion: 'fly' },
+  // 곤충
+  { id: 'comp_butterfly', slot: 'companion', name: '노랑나비', emoji: '🦋', cost: 45, rarity: 'common', motion: 'fly' },
   { id: 'comp_bee', slot: 'companion', name: '붕붕 꿀벌', emoji: '🐝', cost: 60, rarity: 'common', motion: 'fly' },
-  { id: 'comp_bird', slot: 'companion', name: '작은 새', emoji: '🐦', cost: 75, rarity: 'rare', motion: 'fly' },
-  { id: 'comp_ladybug', slot: 'companion', name: '무당벌레', emoji: '🐞', cost: 55, rarity: 'common', motion: 'hop' },
+  { id: 'comp_dragonfly', slot: 'companion', name: '잠자리', emoji: '🪰', cost: 70, rarity: 'common', motion: 'fly' },
+  { id: 'comp_ladybug', slot: 'companion', name: '무당벌레', emoji: '🐞', cost: 55, rarity: 'common', motion: 'walk' },
+  { id: 'comp_firefly', slot: 'companion', name: '반딧불이', emoji: '✨', cost: 80, rarity: 'rare', motion: 'fly' },
+  { id: 'comp_morpho', slot: 'companion', name: '파랑 모르포나비', emoji: '🦋', cost: 150, rarity: 'epic', motion: 'fly' },
+  // 땅 친구
+  { id: 'comp_snail', slot: 'companion', name: '느릿 달팽이', emoji: '🐌', cost: 30, rarity: 'common', motion: 'walk' },
+  { id: 'comp_turtle', slot: 'companion', name: '아기 거북이', emoji: '🐢', cost: 50, rarity: 'common', motion: 'walk' },
+  { id: 'comp_chick', slot: 'companion', name: '삐약 병아리', emoji: '🐥', cost: 45, rarity: 'common', motion: 'hop' },
   { id: 'comp_bunny', slot: 'companion', name: '깡총 토끼', emoji: '🐇', cost: 85, rarity: 'rare', motion: 'hop' },
-  { id: 'comp_fish', slot: 'companion', name: '헤엄 물고기', emoji: '🐠', cost: 80, rarity: 'rare', motion: 'fly' },
+  { id: 'comp_puppy', slot: 'companion', name: '꼬리 강아지', emoji: '🐕', cost: 90, rarity: 'rare', motion: 'walk' },
+  { id: 'comp_kitten', slot: 'companion', name: '아기 고양이', emoji: '🐈', cost: 90, rarity: 'rare', motion: 'walk' },
+  // 물 친구 (공기방울 속에서 헤엄쳐요)
+  { id: 'comp_fish', slot: 'companion', name: '헤엄 물고기', emoji: '🐠', cost: 80, rarity: 'rare', motion: 'swim' },
+  { id: 'comp_goldfish', slot: 'companion', name: '금붕어', emoji: '🐟', cost: 70, rarity: 'common', motion: 'swim' },
+  // 하늘
   { id: 'comp_moon', slot: 'companion', name: '빙글 달님', emoji: '🌙', cost: 120, rarity: 'epic', motion: 'orbit' },
   { id: 'comp_star', slot: 'companion', name: '빙글 별님', emoji: '⭐', cost: 110, rarity: 'epic', motion: 'orbit' },
-  { id: 'comp_dragonfly', slot: 'companion', name: '잠자리', emoji: '🦋', cost: 70, rarity: 'common', motion: 'fly' },
   { id: 'comp_ufo', slot: 'companion', name: '반짝 UFO', emoji: '🛸', cost: 350, rarity: 'legend', motion: 'fly', hidden: true, teaser: '하늘을 빙빙 돌아요' },
 ];
 

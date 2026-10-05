@@ -3,6 +3,7 @@
 import { sql } from '@vercel/postgres';
 import { MAX_DIARY_IMAGES, MAX_TITLE_LENGTH, calculateStreak, isValidDateKey } from '@/lib/diary';
 import { BUDDY_ANIMALS, levelFor } from '@/lib/diaryPet';
+import { APPLES_PER_DIARY } from '@/lib/petCare';
 
 /**
  * Resolves the diary owner on the server — never from a client-supplied id.
@@ -204,6 +205,9 @@ export async function saveDiary(input: {
       leveledUp: levelFor(countAfter) > levelFor(countBefore),
       // A milestone sticker newly unlocked by this save, if any.
       newSticker: countAfter > countBefore ? countAfter : null,
+      // Pet food is derived from the completed count (lib/petCare.ts), so
+      // a newly completed diary has just earned these apples.
+      applesEarned: countAfter > countBefore ? APPLES_PER_DIARY : 0,
     };
   } catch (error) {
     console.error('Error saving diary:', error);

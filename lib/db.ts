@@ -286,6 +286,33 @@ export async function initializeDatabase() {
       WHERE emoji IS NULL OR slot IS NULL OR cost IS NULL OR status = 'pending'
     `;
 
+    // ── 친구 키우기 (pet care) ────────────────────────────────────────
+    // Stats decay with time and are written back only on change (see
+    // app/diary/petActions.ts). Food stock is derived — earned from diaries
+    // and vocab stars since base_* minus pet_feedings — so only meals are
+    // logged. base_stars is NULL until the vocab DB is first reachable.
+    await sql`
+      CREATE TABLE IF NOT EXISTS pet_care (
+        user_id UUID PRIMARY KEY REFERENCES child_account(id) ON DELETE CASCADE,
+        fullness REAL NOT NULL DEFAULT 60,
+        happiness REAL NOT NULL DEFAULT 70,
+        xp INTEGER NOT NULL DEFAULT 0,
+        base_diaries INTEGER NOT NULL DEFAULT 0,
+        base_stars INTEGER,
+        last_play_at TIMESTAMP WITH TIME ZONE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS pet_feedings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+        food_id VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     console.log('✓ Database tables initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

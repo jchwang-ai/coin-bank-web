@@ -93,6 +93,97 @@ export function playSaveBlip() {
   tone(ctx, 784, now + 0.08, 0.16, 0.1, 'triangle'); // G5
 }
 
+/** Pitch glide from f1 to f2 — the building block for creature voices. */
+function sweep(
+  ctx: AudioContext,
+  f1: number,
+  f2: number,
+  startTime: number,
+  duration: number,
+  gain = 0.1,
+  type: OscillatorType = 'sine'
+) {
+  const osc = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(f1, startTime);
+  osc.frequency.exponentialRampToValueAtTime(f2, startTime + duration);
+  gainNode.gain.setValueAtTime(0, startTime);
+  gainNode.gain.linearRampToValueAtTime(gain, startTime + 0.01);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  osc.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.02);
+}
+
+/** Bird chirp: two quick rising whistles. */
+export function playTweet() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 2200, 3400, now, 0.08, 0.07);
+  sweep(ctx, 2600, 3900, now + 0.11, 0.09, 0.07);
+}
+
+/** Insect buzz. */
+export function playBuzz() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 190, 260, now, 0.3, 0.05, 'sawtooth');
+}
+
+/** Small-animal squeak. */
+export function playSqueak() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 900, 1500, now, 0.12, 0.08, 'triangle');
+}
+
+/** Baby-dragon / dino "rawr" — low but cute, never scary. */
+export function playRoar() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 260, 140, now, 0.35, 0.09, 'sawtooth');
+}
+
+/** Bubbly blub for fish and whales. */
+export function playBlub() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 300, 700, now, 0.09, 0.08);
+  sweep(ctx, 400, 900, now + 0.1, 0.08, 0.07);
+}
+
+/** Springy boing for jumps and ball kicks. */
+export function playBoing() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 180, 620, now, 0.22, 0.09, 'triangle');
+}
+
+/** Nom — one bite of food. */
+export function playChomp() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  sweep(ctx, 320, 120, now, 0.09, 0.12, 'square');
+}
+
+/** Short happy tune for singing / parties. */
+export function playMelody() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const notes = [523.25, 659.25, 783.99, 659.25, 880, 783.99, 1046.5];
+  notes.forEach((f, i) => tone(ctx, f, now + i * 0.16, 0.22, 0.1, 'triangle'));
+}
+
 /** Sparkly flourish — for finishing a diary entry. */
 export function playSparkle() {
   const ctx = getContext();

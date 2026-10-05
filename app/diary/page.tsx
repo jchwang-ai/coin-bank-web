@@ -7,7 +7,14 @@ import EmojiBurst from '@/components/EmojiBurst';
 import DiaryCalendar, { DiaryMark } from '@/components/DiaryCalendar';
 import DiaryBuddy from '@/components/DiaryBuddy';
 import BuddyPickerSheet from '@/components/BuddyPickerSheet';
-import CharacterStage from '@/components/CharacterStage';
+import CharacterStage, { StageSignal } from '@/components/CharacterStage';
+import PetCarePanel from '@/components/PetCarePanel';
+import {
+  FeatureIntroOverlay,
+  TrickUnlockOverlay,
+  hasSeenFeatureIntro,
+  markFeatureIntroSeen,
+} from '@/components/PetNewsOverlay';
 import CharacterShopSheet from '@/components/CharacterShopSheet';
 import MyCollectionSheet from '@/components/MyCollectionSheet';
 import ItemWishSheet from '@/components/ItemWishSheet';
@@ -16,7 +23,19 @@ import { useUnlockAudio } from '@/hooks/useUnlockAudio';
 import { playChime, playPop, playSparkle } from '@/lib/sound';
 import { formatCardDate, isToday, moodOf, todayKey } from '@/lib/diary';
 import { ShopItem, SlotId } from '@/lib/characterShop';
+import { animalOf } from '@/lib/diaryPet';
+import {
+  FOODS,
+  FULL_LIMIT,
+  FoodId,
+  PetState,
+  TRICKS,
+  friendshipLevel,
+  moodOf as petMoodOf,
+  tricksForLevel,
+} from '@/lib/petCare';
 import { getDiaryOverview, setDiaryPet, DiaryListItem } from './actions';
+import { feedPet, getPetState, playWithPet } from './petActions';
 import {
   getShopState,
   buyItem,
@@ -56,6 +75,12 @@ export default function DiaryPage() {
   const [wishOpen, setWishOpen] = useState(false);
   const [reveal, setReveal] = useState<{ item: ShopItem; wasHidden: boolean } | null>(null);
 
+  // 친구 키우기
+  const [pet, setPet] = useState<PetState | null>(null);
+  const [stageSignal, setStageSignal] = useState<StageSignal | null>(null);
+  const [trickNews, setTrickNews] = useState<number | null>(null);
+  const [introOpen, setIntroOpen] = useState(false);
+
   const refreshShop = async () => {
     const s = await getShopState();
     setGemsEarned(s.gemsEarned);
@@ -85,6 +110,12 @@ export default function DiaryPage() {
       })
       .catch((err) => console.error('Shop state load failed:', err));
 
+    getPetState()
+      .then((s) => {
+        if (!cancelled) setPet(s);
+      })
+      .catch((err) => console.error('Pet state load failed:', err));
+
     getDiaryOverview()
       .then((data) => {
         if (cancelled) return;
@@ -94,6 +125,8 @@ export default function DiaryPage() {
         setStreak(data.streak);
         setPetAnimal(data.petAnimal);
         setTotalCompleted(data.totalCompleted);
+        // Tell the child about the new pet features once.
+        if (data.petAnimal && !hasSeenFeatureIntro()) setIntroOpen(true);
         // Small welcome-back celebration when today is already done.
         const today = todayKey();
         if (data.recent.some((d) => d.diary_date === today && d.status === 'completed')) {
@@ -156,6 +189,31 @@ export default function DiaryPage() {
     });
   };
 
+  const handleFeed = async (foodId: FoodId) => {
+    const food = FOODS.find((f) => f.id === foodId)!;
+    if (pet && pet.fullness >= FULL_LIMIT) throw new Error('배불러서 더 못 먹어요! 조금 있다 줘요 😋');
+    // Drop the food right away so the tap feels instant; the server
+    // re-checks stock/fullness and is the source of truth.
+    playPop();
+    setStageSignal({ key: Date.now(), kind: 'feed', emoji: food.emoji });
+    const res = await feedPet(foodId);
+    setPet(res.state);
+    // Let the buddy finish eating before announcing a new trick.
+    if (res.levelUpTo) {
+      const level = res.levelUpTo;
+      setTimeout(() => {
+        playChime();
+        setTrickNews(level);
+      }, 3600);
+    }
+  };
+
+  const handlePlay = () => {
+    playWithPet()
+      .then((r) => setPet(r.state))
+      .catch((err) => console.error('Play failed:', err));
+  };
+
   const handleCreateItem = async (name: string, note: string) => {
     const res = await createCustomItem(name, note);
     playChime();
@@ -172,6 +230,22 @@ export default function DiaryPage() {
   if (isLoading) {
     return <div className="pt-24 text-center text-[#8e8e93]">불러오는 중...</div>;
   }
+
+  const isEgg = totalCompleted < 1;
+  const friendLv = friendshipLevel(pet?.xp ?? 0).level;
+  const petMood = pet ? petMoodOf(pet.fullness, pet.happiness) : undefined;
+  const buddyName = animalOf(petAnimal)?.name ?? '친구';
+  const newTrick = trickNews ? TRICKS.find((t) => t.level === trickNews) : undefined;
+
+  const carePanel = (compact: boolean) => (
+    <PetCarePanel
+      state={pet}
+      isEgg={isEgg}
+      buddyName={buddyName}
+      onFeed={handleFeed}
+      compact={compact}
+    />
+  );
 
   return (
     <div className="min-h-screen pb-16">
@@ -208,8 +282,14 @@ export default function DiaryPage() {
             <CharacterStage
               baseAnimalId={petAnimal}
               equipped={equipped}
+              ownedIds={ownedIds}
               completedCount={totalCompleted}
               customItems={customItems}
+              tricks={tricksForLevel(friendLv)}
+              mood={petMood}
+              signal={stageSignal}
+              onPlay={handlePlay}
+              fullscreenFooter={carePanel(true)}
             />
 
             {/* Gems + shop entry points */}
@@ -250,6 +330,8 @@ export default function DiaryPage() {
             )}
           </div>
         )}
+
+        {petAnimal && carePanel(false)}
 
         {/* Growing buddy — the main motivation hook */}
         <DiaryBuddy
@@ -419,6 +501,27 @@ export default function DiaryPage() {
           item={reveal.item}
           wasHidden={reveal.wasHidden}
           onDone={() => setReveal(null)}
+        />
+      )}
+
+      {introOpen && (
+        <FeatureIntroOverlay
+          onClose={() => {
+            markFeatureIntroSeen();
+            setIntroOpen(false);
+            playPop();
+          }}
+        />
+      )}
+
+      {newTrick && trickNews && (
+        <TrickUnlockOverlay
+          trick={newTrick}
+          level={trickNews}
+          onClose={() => {
+            setTrickNews(null);
+            setStageSignal({ key: Date.now(), kind: 'trick', trick: newTrick.id });
+          }}
         />
       )}
 

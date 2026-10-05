@@ -2,6 +2,7 @@
 
 import { RARITY, SHOP_ITEMS, SLOTS, SlotId, itemById } from '@/lib/characterShop';
 import { playPop } from '@/lib/sound';
+import { ItemIcon } from './CreatureArt';
 
 interface MyCollectionSheetProps {
   ownedIds: string[];
@@ -84,7 +85,7 @@ export default function MyCollectionSheet({
                             isWorn ? `bg-violet-50 ring-2 ${rarity.ring}` : 'bg-black/[0.03]'
                           }`}
                         >
-                          <span className="text-[26px] leading-none">{item.emoji}</span>
+                          <ItemIcon item={item} size={26} />
                           <span className="line-clamp-1 px-1 text-[9px] font-bold text-[#1c1c1e]">
                             {item.name}
                           </span>
