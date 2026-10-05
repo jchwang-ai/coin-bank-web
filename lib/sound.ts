@@ -184,6 +184,156 @@ export function playMelody() {
   notes.forEach((f, i) => tone(ctx, f, now + i * 0.16, 0.22, 0.1, 'triangle'));
 }
 
+/**
+ * Pitch contour through several points, with optional vibrato — enough to
+ * fake a meow, a bark or a neigh with nothing but an oscillator.
+ */
+function contour(
+  ctx: AudioContext,
+  points: Array<[number, number]>,
+  startTime: number,
+  gain = 0.1,
+  type: OscillatorType = 'sine',
+  vibrato = 0
+) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  const end = startTime + points[points.length - 1][0];
+  osc.frequency.setValueAtTime(points[0][1], startTime);
+  for (const [t, f] of points.slice(1)) osc.frequency.linearRampToValueAtTime(f, startTime + t);
+  if (vibrato) {
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 7;
+    lfoGain.gain.value = vibrato;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfo.start(startTime);
+    lfo.stop(end + 0.05);
+  }
+  g.gain.setValueAtTime(0, startTime);
+  g.gain.linearRampToValueAtTime(gain, startTime + 0.02);
+  g.gain.setValueAtTime(gain, Math.max(startTime + 0.02, end - 0.06));
+  g.gain.exponentialRampToValueAtTime(0.001, end);
+  osc.connect(g);
+  g.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(end + 0.05);
+}
+
+/** Short burst of filtered noise — water, scrubbing, rustling. */
+function noise(ctx: AudioContext, startTime: number, duration: number, gain = 0.08, freq = 1200, q = 0.8) {
+  const len = Math.floor(ctx.sampleRate * duration);
+  const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = freq;
+  filter.Q.value = q;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, startTime);
+  g.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  src.connect(filter);
+  filter.connect(g);
+  g.connect(ctx.destination);
+  src.start(startTime);
+  src.stop(startTime + duration);
+}
+
+/** Each buddy animal's own little voice. */
+export function playAnimalVoice(animalId: string | null | undefined, mood: 'happy' | 'sad' | 'normal' = 'normal') {
+  const ctx = getContext();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const k = mood === 'happy' ? 1.12 : mood === 'sad' ? 0.82 : 1;
+  switch (animalId) {
+    case 'dog': // 멍멍!
+      contour(ctx, [[0, 620 * k], [0.09, 380 * k]], t, 0.12, 'square');
+      contour(ctx, [[0, 680 * k], [0.1, 400 * k]], t + 0.17, 0.12, 'square');
+      break;
+    case 'cat': // 야옹~
+      contour(ctx, [[0, 480 * k], [0.18, 820 * k], [0.45, 560 * k]], t, 0.1, 'triangle', 12);
+      break;
+    case 'rabbit':
+      contour(ctx, [[0, 1300 * k], [0.06, 1700 * k]], t, 0.07, 'sine');
+      contour(ctx, [[0, 1400 * k], [0.06, 1800 * k]], t + 0.1, 0.07, 'sine');
+      break;
+    case 'panda':
+      contour(ctx, [[0, 210 * k], [0.12, 260 * k], [0.3, 170 * k]], t, 0.12, 'triangle');
+      break;
+    case 'fox':
+      contour(ctx, [[0, 900 * k], [0.08, 1350 * k], [0.16, 1000 * k]], t, 0.09, 'sawtooth');
+      break;
+    case 'penguin':
+      contour(ctx, [[0, 480 * k], [0.1, 720 * k], [0.25, 420 * k]], t, 0.08, 'sawtooth', 20);
+      break;
+    case 'unicorn': // 히힝~
+      contour(ctx, [[0, 950 * k], [0.15, 1200 * k], [0.55, 520 * k]], t, 0.08, 'triangle', 40);
+      break;
+    default: // chick: 삐약삐약
+      contour(ctx, [[0, 2100 * k], [0.07, 2900 * k]], t, 0.07, 'sine');
+      contour(ctx, [[0, 2200 * k], [0.08, 3100 * k]], t + 0.12, 0.07, 'sine');
+  }
+}
+
+/** Soapy scrub. */
+export function playScrub() {
+  const ctx = getContext();
+  if (!ctx) return;
+  noise(ctx, ctx.currentTime, 0.12, 0.05, 2400, 1.5);
+}
+
+/** Shower / splash. */
+export function playSplash() {
+  const ctx = getContext();
+  if (!ctx) return;
+  noise(ctx, ctx.currentTime, 0.35, 0.07, 3500, 0.6);
+}
+
+/** Bubble pop. */
+export function playBubble() {
+  const ctx = getContext();
+  if (!ctx) return;
+  sweep(ctx, 500 + Math.random() * 500, 1400, ctx.currentTime, 0.06, 0.06);
+}
+
+/** Brush stroke. */
+export function playBrush() {
+  const ctx = getContext();
+  if (!ctx) return;
+  noise(ctx, ctx.currentTime, 0.18, 0.05, 900, 2);
+}
+
+/** Footstep on the path. */
+export function playStep() {
+  const ctx = getContext();
+  if (!ctx) return;
+  noise(ctx, ctx.currentTime, 0.06, 0.05, 400, 1);
+}
+
+/** Soft lullaby for bedtime. */
+export function playLullaby() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const notes = [392, 330, 392, 330, 349.23, 293.66, 261.63];
+  notes.forEach((f, i) => tone(ctx, f, now + i * 0.42, 0.6, 0.07, 'sine'));
+}
+
+/** Little fanfare for finishing a care activity. */
+export function playFanfare() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5].forEach((f, i) =>
+    tone(ctx, f, now + i * 0.1, 0.25, 0.12, 'triangle')
+  );
+}
+
 /** Sparkly flourish — for finishing a diary entry. */
 export function playSparkle() {
   const ctx = getContext();

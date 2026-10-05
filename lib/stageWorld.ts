@@ -122,6 +122,8 @@ export interface World {
   sound: (name: SoundName) => void;
   /** Called when the main buddy finishes a meal. */
   onAte?: () => void;
+  /** The main buddy wants to say something (speech bubble + voice). */
+  onTalk?: (a: Actor, key: 'tap' | 'eat' | 'hungry' | 'tired' | 'dirty' | 'pat') => void;
 }
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -588,7 +590,10 @@ function decideWalker(w: World, a: Actor, now: number) {
     a.brain = 'chase';
     return;
   }
-  if (a.isMain && p.hungry && chance(0.35)) emote(w, a, pick(['🍎', '🍪', '😢']));
+  if (a.isMain && p.hungry && chance(0.35)) {
+    if (w.onTalk && chance(0.4)) w.onTalk(a, 'hungry');
+    else emote(w, a, pick(['🍎', '🍪', '😢']));
+  }
   if (a.isMain && p.sad && chance(0.25)) emote(w, a, '💭');
 
   if (p.night && chance(a.isMain ? 0.22 : 0.18)) {
@@ -1007,7 +1012,8 @@ function finishEating(w: World, a: Actor, now: number) {
   a.until = now + rand(1200, 2000);
   a.vz = 360 * w.unit;
   act(a, 'tada', 900, now);
-  emote(w, a, pick(['😋', '🥰', '💖']));
+  if (w.onTalk) w.onTalk(a, 'eat');
+  else emote(w, a, pick(['😋', '🥰', '💖']));
   w.sound('sparkle');
   w.onAte?.();
 }
@@ -1117,7 +1123,7 @@ export function startParty(w: World) {
   }
 }
 
-export function performTrick(w: World, a: Actor, trick: TrickId) {
+export function performTrick(w: World, a: Actor, trick: TrickId, quiet = false) {
   const now = w.now;
   const u = w.unit;
   const p = headPoint(a);
@@ -1171,7 +1177,7 @@ export function performTrick(w: World, a: Actor, trick: TrickId) {
       a.vz = 430 * u;
       w.sound('boing');
   }
-  if (chance(0.6)) emote(w, a, pick(['😆', '🥰', '✨', '💕', '🎵']));
+  if (!quiet && chance(0.6)) emote(w, a, pick(['😆', '🥰', '✨', '💕', '🎵']));
 }
 
 // ── touch ──────────────────────────────────────────────────────────────
@@ -1199,7 +1205,8 @@ export function tapActor(w: World, a: Actor) {
     const tricks = w.props.tricks.filter((t) => t !== 'ball');
     if (!tricks.includes('jump')) tricks.unshift('jump');
     const newest = tricks[tricks.length - 1];
-    performTrick(w, a, chance(0.35) ? newest : pick(tricks));
+    performTrick(w, a, chance(0.35) ? newest : pick(tricks), !!w.onTalk);
+    w.onTalk?.(a, w.props.hungry ? 'hungry' : 'tap');
     return;
   }
 

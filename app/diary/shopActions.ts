@@ -4,6 +4,7 @@ import { sql } from '@vercel/postgres';
 import { Motion, Rarity, ShopItem, itemById, SLOTS, SlotId } from '@/lib/characterShop';
 import { inferItem } from '@/lib/customItem';
 import { getEarnedGems } from '@/lib/vocabGems';
+import { getSpentGems } from '@/lib/petDb';
 
 /**
  * Child-invented items live in the DB (they're created at runtime) while the
@@ -56,13 +57,6 @@ async function requireChildId(): Promise<string> {
   return (result.rows[0] as any).id as string;
 }
 
-async function getSpentGems(userId: string): Promise<number> {
-  const r = await sql`
-    SELECT COALESCE(SUM(cost_paid), 0) AS spent FROM character_items WHERE user_id = ${userId}
-  `;
-  return Number((r.rows[0] as any).spent) || 0;
-}
-
 export interface ItemWish {
   id: string;
   name: string;
@@ -82,8 +76,9 @@ export async function getShopState() {
   try {
     const userId = await requireChildId();
 
-    const [earned, owned, equipped, wishes] = await Promise.all([
+    const [earned, spent, owned, equipped, wishes] = await Promise.all([
       getEarnedGems(),
+      getSpentGems(userId),
       sql`SELECT item_id, cost_paid, acquired_at FROM character_items WHERE user_id = ${userId}`,
       sql`SELECT slot, item_id FROM character_equipped WHERE user_id = ${userId}`,
       sql`
@@ -92,8 +87,6 @@ export async function getShopState() {
         ORDER BY created_at DESC LIMIT 40
       `,
     ]);
-
-    const spent = (owned.rows as any[]).reduce((sum, r) => sum + (Number(r.cost_paid) || 0), 0);
 
     return {
       gemsEarned: earned.stars,

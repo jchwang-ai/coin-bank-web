@@ -311,7 +311,7 @@ const FOOT_COLOR: Record<string, string> = {
   '🐹': '#E9B872', '🐸': '#69DB7C', '🐨': '#ADB5BD', '🐲': '#69DB7C', '🐣': '#FFA94D',
 };
 
-function EmojiBody({ emoji, feet }: { emoji: string; feet: boolean }) {
+export function EmojiBody({ emoji, feet }: { emoji: string; feet: boolean }) {
   const color = FOOT_COLOR[emoji] || '#D9A066';
   return (
     <>

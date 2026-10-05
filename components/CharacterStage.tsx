@@ -41,6 +41,7 @@ import {
   playBoing,
   playBuzz,
   playChomp,
+  playAnimalVoice,
   playMelody,
   playPop,
   playRoar,
@@ -49,6 +50,8 @@ import {
   playTweet,
 } from '@/lib/sound';
 import CreatureArt from './CreatureArt';
+import { readTts, speak } from './care/common';
+import { pickLine } from '@/lib/petLines';
 
 /** One-off things the page asks the stage to do (feed, show a new trick). */
 export interface StageSignal {
@@ -74,6 +77,8 @@ interface CharacterStageProps {
   onPlay?: () => void;
   /** Shown under the stage in fullscreen (e.g. the food bar). */
   fullscreenFooter?: ReactNode;
+  /** Fur dye from the grooming salon (hue-rotate degrees). */
+  furHue?: number;
 }
 
 const CARD_HEIGHT = 230;
@@ -247,6 +252,7 @@ function StageView({
   signal,
   onPlay,
   fullscreenFooter,
+  furHue = 0,
   onExpand,
   onClose,
 }: StageViewProps) {
@@ -317,6 +323,18 @@ function StageView({
     fxQueue: [],
     sound: (name) => SOUNDS[name]?.(),
   }));
+
+  // Tapping the buddy makes it talk: a line in a bubble, its own cry, and
+  // (if read-aloud is on) the line spoken.
+  useEffect(() => {
+    world.onTalk = (a, key) => {
+      const text = pickLine(key, baseAnimalId);
+      const x = Math.max(70, Math.min(world.w - 70, a.x));
+      world.fxQueue.push({ char: text, x, y: a.y - a.z - a.size - 4, dx: 0, dy: 0, dur: 2400, size: 13, kind: 'emote' });
+      playAnimalVoice(baseAnimalId, key === 'hungry' || key === 'tired' ? 'sad' : 'happy');
+      if (readTts()) speak(text);
+    };
+  }, [world, baseAnimalId]);
 
   const effectEmoji = effect?.emoji ?? null;
   useEffect(() => {
@@ -658,7 +676,7 @@ function StageView({
             if (el) actorEls.current.set(r.key, el);
             else actorEls.current.delete(r.key);
           }}
-          style={{ width: r.base, height: r.base }}
+          style={{ width: r.base, height: r.base, ...(r.isMain ? ({ '--fur-hue': `${furHue}deg` } as CSSProperties) : {}) }}
         >
           <div className="cr-face">
             <div className="cr-act">

@@ -9,6 +9,8 @@ import DiaryBuddy from '@/components/DiaryBuddy';
 import BuddyPickerSheet from '@/components/BuddyPickerSheet';
 import CharacterStage, { StageSignal } from '@/components/CharacterStage';
 import PetCarePanel from '@/components/PetCarePanel';
+import CareRoom from '@/components/care/CareRoom';
+import { SceneId } from '@/components/care/types';
 import {
   FeatureIntroOverlay,
   TrickUnlockOverlay,
@@ -80,6 +82,7 @@ export default function DiaryPage() {
   const [stageSignal, setStageSignal] = useState<StageSignal | null>(null);
   const [trickNews, setTrickNews] = useState<number | null>(null);
   const [introOpen, setIntroOpen] = useState(false);
+  const [careScene, setCareScene] = useState<SceneId | null>(null);
 
   const refreshShop = async () => {
     const s = await getShopState();
@@ -233,7 +236,7 @@ export default function DiaryPage() {
 
   const isEgg = totalCompleted < 1;
   const friendLv = friendshipLevel(pet?.xp ?? 0).level;
-  const petMood = pet ? petMoodOf(pet.fullness, pet.happiness) : undefined;
+  const petMood = pet ? petMoodOf(pet.fullness, pet.happiness, pet.clean, pet.energy) : undefined;
   const buddyName = animalOf(petAnimal)?.name ?? '친구';
   const newTrick = trickNews ? TRICKS.find((t) => t.level === trickNews) : undefined;
 
@@ -243,6 +246,10 @@ export default function DiaryPage() {
       isEgg={isEgg}
       buddyName={buddyName}
       onFeed={handleFeed}
+      onOpenCare={(scene) => {
+        playPop();
+        setCareScene(scene ?? 'living');
+      }}
       compact={compact}
     />
   );
@@ -290,6 +297,7 @@ export default function DiaryPage() {
               signal={stageSignal}
               onPlay={handlePlay}
               fullscreenFooter={carePanel(true)}
+              furHue={pet?.furHue ?? 0}
             />
 
             {/* Gems + shop entry points */}
@@ -510,6 +518,32 @@ export default function DiaryPage() {
             markFeatureIntroSeen();
             setIntroOpen(false);
             playPop();
+          }}
+        />
+      )}
+
+      {careScene && pet && petAnimal && (
+        <CareRoom
+          animalId={petAnimal}
+          emoji={animalOf(petAnimal)?.emoji ?? '🐣'}
+          buddyName={buddyName}
+          pet={pet}
+          setPet={setPet}
+          gemsLeft={gemsLeft}
+          setGemsLeft={setGemsLeft}
+          ownedIds={ownedIds}
+          customItems={customItems}
+          equipped={equipped}
+          onEquip={handleEquip}
+          onLevelUp={(level) => {
+            playChime();
+            setTrickNews(level);
+          }}
+          initialScene={careScene}
+          onClose={() => {
+            playPop();
+            setCareScene(null);
+            refreshShop().catch(() => {});
           }}
         />
       )}
