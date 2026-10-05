@@ -42,6 +42,7 @@ import {
   playBuzz,
   playChomp,
   playAnimalVoice,
+  playCreatureVoice,
   playMelody,
   playPop,
   playRoar,
@@ -50,7 +51,6 @@ import {
   playTweet,
 } from '@/lib/sound';
 import CreatureArt from './CreatureArt';
-import { readTts, speak } from './care/common';
 import { pickLine } from '@/lib/petLines';
 
 /** One-off things the page asks the stage to do (feed, show a new trick). */
@@ -94,6 +94,13 @@ const SOUNDS: Record<SoundName, () => void> = {
   chomp: playChomp,
   melody: playMelody,
   sparkle: playSparkle,
+  bark: () => playAnimalVoice('dog', 'happy'),
+  meow: () => playAnimalVoice('cat', 'happy'),
+  peep: () => playAnimalVoice('chick', 'happy'),
+  neigh: () => playAnimalVoice('unicorn', 'happy'),
+  hoot: () => playCreatureVoice('hoot'),
+  croak: () => playCreatureVoice('croak'),
+  quack: () => playCreatureVoice('quack'),
 };
 
 function isNightNow() {
@@ -324,15 +331,14 @@ function StageView({
     sound: (name) => SOUNDS[name]?.(),
   }));
 
-  // Tapping the buddy makes it talk: a line in a bubble, its own cry, and
-  // (if read-aloud is on) the line spoken.
+  // Tapping the buddy makes it talk: a cute line as a subtitle bubble plus
+  // its own real cry.
   useEffect(() => {
     world.onTalk = (a, key) => {
       const text = pickLine(key, baseAnimalId);
       const x = Math.max(70, Math.min(world.w - 70, a.x));
       world.fxQueue.push({ char: text, x, y: a.y - a.z - a.size - 4, dx: 0, dy: 0, dur: 2400, size: 13, kind: 'emote' });
       playAnimalVoice(baseAnimalId, key === 'hungry' || key === 'tired' ? 'sad' : 'happy');
-      if (readTts()) speak(text);
     };
   }, [world, baseAnimalId]);
 

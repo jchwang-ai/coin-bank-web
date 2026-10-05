@@ -59,7 +59,7 @@ export default function CareRoom(props: CareRoomProps) {
   const [toastMsg, setToastMsg] = useState('');
   const [poop, setPoop] = useState(() => pet.today.fed && Math.random() < 0.5);
   const [size, setSize] = useState(170);
-  const { talk, say, tts, setTts } = usePetTalk(animalId);
+  const { talk, say } = usePetTalk(animalId);
 
   useEffect(() => {
     const fit = () => setSize(Math.round(Math.min(window.innerWidth * 0.46, window.innerHeight * 0.26, 230)));
@@ -107,7 +107,7 @@ export default function CareRoom(props: CareRoomProps) {
         if (res.levelUpTo) setTimeout(() => onLevelUp(res.levelUpTo!), 1800);
         return { state: res.state, xpGained: res.xpGained, found: res.found };
       } catch (err) {
-        say({ text: err instanceof Error ? err.message : '잠깐 문제가 생겼어요' }, 'sad');
+        say({ text: err instanceof Error ? err.message : '잠깐 문제가 생겼어요', raw: true }, 'sad');
         return null;
       }
     },
@@ -124,7 +124,7 @@ export default function CareRoom(props: CareRoomProps) {
         if (Math.random() < 0.4) setTimeout(() => setPoop(true), 9000);
         return { favorite: res.favorite };
       } catch (err) {
-        say({ text: err instanceof Error ? err.message : '먹이를 주지 못했어요' }, 'sad');
+        say({ text: err instanceof Error ? err.message : '먹이를 주지 못했어요', raw: true }, 'sad');
         return null;
       }
     },
@@ -228,13 +228,6 @@ export default function CareRoom(props: CareRoomProps) {
           <span className="shrink-0 rounded-full bg-gradient-to-r from-sky-400 to-cyan-400 px-2.5 py-1 text-[12px] font-bold text-white">
             💎 {gemsLeft}
           </span>
-          <button
-            onClick={() => setTts(!tts)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/5 text-[15px] active:scale-90"
-            aria-label={tts ? '말소리 끄기' : '말소리 켜기'}
-          >
-            {tts ? '🔊' : '🔇'}
-          </button>
         </div>
         <div className="mt-2 flex items-center gap-2.5">
           <Stat icon="🍚" value={pet.fullness} low={pet.fullness < 30} />

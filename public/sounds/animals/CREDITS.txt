@@ -1,0 +1,31 @@
+Animal sound credits
+====================
+
+All clips here are short excerpts (trimmed, high-passed, volume-normalised,
+some pitched up to sound cuter) of the recordings below.
+
+BigSoundBank — https://bigsoundbank.com — CC0 1.0 (public domain, by Joseph Sardin)
+  chick-1..3   "Chick that chirp" (#0672)
+  dog-1, fox-1 "Barking of a spitz" (#0682)
+  dog-2, dog-3, fox-2  "Small dog barking behind door" (#3537)
+  cat-1, cat-2 "Mewing kitten 3 weeks" (#0390)
+  cat-3        "Small mewing of a cat" (#0098)
+  cat-4        "Little meow of a cat" (#0494)
+  rabbit-1, rabbit-2  "Sniff" (#0784)
+  rabbit-3     "Bunny hutch" (#1376)
+  panda-1, panda-2    "Young goat 1 / 2" (#1378, #1379)
+  unicorn-1, unicorn-2  "Little neighing call 1 / 4" (#1212, #1215)
+  bird-1, bird-2  "Young bird" (#0692)
+  bird-3       "Baby birds in a nest 1" (#1907)
+  owl-1        "Tawny owl 1" (#1763)
+  frog-1       "One frog" (#0819)
+  duck-1       "Ducks" (#0276)
+  bee-1        "Bumblebee 1" (#1000)
+
+Wikimedia Commons — CC BY 4.0 (https://creativecommons.org/licenses/by/4.0)
+  penguin-1, penguin-2
+    "Vocal-individuality-cues-in-the-African-penguin-(Spheniscus-demersus)-a-source-filter-theory-srep17255-s2.oga"
+    by Favaro L, Gamba M, Alfieri C, Pessani D, McElligott A (2015),
+    "Vocal individuality cues in the African penguin (Spheniscus demersus):
+    a source-filter theory approach", Scientific Reports, DOI:10.1038/srep17255.
+    Changes: trimmed, filtered, normalised; penguin-2 pitched up.

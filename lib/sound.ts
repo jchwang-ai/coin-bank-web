@@ -47,6 +47,7 @@ function tone(
 
 export function unlockAudio() {
   getContext();
+  preloadAnimalSounds();
 }
 
 /** Cheerful ascending chime — for receiving hearts / approvals. */
@@ -119,6 +120,7 @@ function sweep(
 
 /** Bird chirp: two quick rising whistles. */
 export function playTweet() {
+  if (playClip(CREATURE_CLIPS.tweet, 0.95 + Math.random() * 0.15)) return;
   const ctx = getContext();
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -128,6 +130,7 @@ export function playTweet() {
 
 /** Insect buzz. */
 export function playBuzz() {
+  if (playClip(CREATURE_CLIPS.buzz, 1, 0.45)) return;
   const ctx = getContext();
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -244,8 +247,8 @@ function noise(ctx: AudioContext, startTime: number, duration: number, gain = 0.
   src.stop(startTime + duration);
 }
 
-/** Each buddy animal's own little voice. */
-export function playAnimalVoice(animalId: string | null | undefined, mood: 'happy' | 'sad' | 'normal' = 'normal') {
+/** Synthesized stand-in, used until the recorded clips have loaded. */
+function synthAnimalVoice(animalId: string | null | undefined, mood: 'happy' | 'sad' | 'normal' = 'normal') {
   const ctx = getContext();
   if (!ctx) return;
   const t = ctx.currentTime;
@@ -341,4 +344,82 @@ export function playSparkle() {
   const now = ctx.currentTime;
   const notes = [659.25, 880, 1174.66, 1567.98]; // E5 A5 D6 G6
   notes.forEach((f, i) => tone(ctx, f, now + i * 0.07, 0.3, 0.12, 'triangle'));
+}
+
+// ── Recorded animal sounds ─────────────────────────────────────────────
+// Real recordings (CC0 / CC BY, see public/sounds/animals/CREDITS.txt),
+// trimmed to short cute clips. Decoded once into AudioBuffers; until a clip
+// is ready the synthesized voice above plays instead, so taps never go silent.
+
+const ANIMAL_CLIPS: Record<string, string[]> = {
+  chick: ['chick-1', 'chick-2', 'chick-3'],
+  dog: ['dog-1', 'dog-2', 'dog-3'],
+  cat: ['cat-1', 'cat-2', 'cat-3', 'cat-4'],
+  rabbit: ['rabbit-1', 'rabbit-2', 'rabbit-3'],
+  panda: ['panda-1', 'panda-2'],
+  fox: ['fox-1', 'fox-2'],
+  penguin: ['penguin-1', 'penguin-2'],
+  unicorn: ['unicorn-1', 'unicorn-2'],
+};
+
+const CREATURE_CLIPS = {
+  tweet: ['bird-1', 'bird-2', 'bird-3'],
+  hoot: ['owl-1'],
+  croak: ['frog-1'],
+  quack: ['duck-1'],
+  buzz: ['bee-1'],
+};
+
+const clips = new Map<string, AudioBuffer | 'loading' | 'failed'>();
+
+function loadClip(name: string) {
+  const ctx = getContext();
+  if (!ctx || clips.has(name)) return;
+  clips.set(name, 'loading');
+  fetch(`/sounds/animals/${name}.mp3`)
+    .then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.arrayBuffer();
+    })
+    .then((data) => ctx.decodeAudioData(data))
+    .then((buf) => clips.set(name, buf))
+    .catch(() => clips.set(name, 'failed'));
+}
+
+export function preloadAnimalSounds() {
+  for (const list of [...Object.values(ANIMAL_CLIPS), ...Object.values(CREATURE_CLIPS)]) list.forEach(loadClip);
+}
+
+/** Plays a random clip from the list. Returns false if none is ready yet. */
+function playClip(names: string[], rate = 1, gain = 0.7): boolean {
+  const ctx = getContext();
+  if (!ctx || !names.length) return false;
+  const ready = names.filter((n) => clips.get(n) instanceof AudioBuffer);
+  names.forEach(loadClip);
+  if (!ready.length) return false;
+  const buf = clips.get(ready[Math.floor(Math.random() * ready.length)]) as AudioBuffer;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = rate;
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  src.connect(g);
+  g.connect(ctx.destination);
+  src.start();
+  return true;
+}
+
+/**
+ * Each buddy animal's own real cry. Mood nudges the pitch: a happy pup
+ * yips higher, a sad one lower. A little randomness keeps repeats lively.
+ */
+export function playAnimalVoice(animalId: string | null | undefined, mood: 'happy' | 'sad' | 'normal' = 'normal') {
+  const list = ANIMAL_CLIPS[animalId ?? 'chick'] ?? ANIMAL_CLIPS.chick;
+  const base = mood === 'happy' ? 1.08 : mood === 'sad' ? 0.88 : 1;
+  if (!playClip(list, base * (0.96 + Math.random() * 0.1))) synthAnimalVoice(animalId, mood);
+}
+
+/** Cries for stage friends that have their own recording. */
+export function playCreatureVoice(kind: keyof typeof CREATURE_CLIPS) {
+  if (!playClip(CREATURE_CLIPS[kind], 0.95 + Math.random() * 0.12)) playPop();
 }

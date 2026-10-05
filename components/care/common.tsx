@@ -2,7 +2,7 @@
 
 import { CSSProperties, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { EmojiBody } from '@/components/CreatureArt';
-import { LineKey, pickLine } from '@/lib/petLines';
+import { LineKey, animalize, pickLine } from '@/lib/petLines';
 import { playAnimalVoice } from '@/lib/sound';
 
 // ── The buddy, drawn big for the care room ─────────────────────────────
@@ -124,37 +124,7 @@ export function PetSprite({
   );
 }
 
-// ── Speech: bubble + animal voice + (optional) read-aloud ──────────────
-
-const TTS_KEY = 'pet-tts';
-
-export function readTts(): boolean {
-  try {
-    return localStorage.getItem(TTS_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-
-export function speak(text: string) {
-  try {
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    const clean = text.replace(/[\p{Extended_Pictographic}‍️~!…]/gu, ' ').replace(/\s+/g, ' ').trim();
-    if (!clean) return;
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(clean);
-    u.lang = 'ko-KR';
-    const ko = synth.getVoices().find((v) => v.lang?.toLowerCase().startsWith('ko'));
-    if (ko) u.voice = ko;
-    u.pitch = 1.7;
-    u.rate = 1.08;
-    u.volume = 0.9;
-    synth.speak(u);
-  } catch {
-    /* read-aloud is a bonus; never break the page over it */
-  }
-}
+// ── Speech: subtitle bubble + the animal's real cry ────────────────────
 
 export interface Talk {
   text: string;
@@ -162,55 +132,37 @@ export interface Talk {
 }
 
 /**
- * `say('pat')` shows a random line in a bubble, plays the animal's own cry
- * and (if enabled) reads it aloud in a high cute voice.
+ * `say('pat')` shows a random cute animal-style line as a subtitle bubble
+ * and plays the animal's own recorded cry — no human voice.
+ * `{ text }` lines get the animal's speech style too; `{ text, raw: true }`
+ * (e.g. error messages) are shown as written.
  */
 export function usePetTalk(animalId: string | null) {
   const [talk, setTalk] = useState<Talk | null>(null);
-  const [tts, setTtsState] = useState(true);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setTtsState(readTts());
-  }, []);
-
-  const setTts = useCallback((on: boolean) => {
-    setTtsState(on);
-    try {
-      localStorage.setItem(TTS_KEY, on ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-    if (!on) window.speechSynthesis?.cancel();
-  }, []);
-
   const say = useCallback(
-    (key: LineKey | { text: string }, mood: 'happy' | 'sad' | 'normal' = 'normal') => {
-      const text = typeof key === 'string' ? pickLine(key, animalId) : key.text;
+    (key: LineKey | { text: string; raw?: boolean }, mood: 'happy' | 'sad' | 'normal' = 'normal') => {
+      const text =
+        typeof key === 'string' ? pickLine(key, animalId) : key.raw ? key.text : animalize(key.text, animalId);
       seq.current += 1;
       setTalk({ text, key: seq.current });
       playAnimalVoice(animalId, mood);
-      if (tts) setTimeout(() => speak(text), 280);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setTalk(null), 2800);
+      timer.current = setTimeout(() => setTalk(null), 3000);
     },
-    [animalId, tts]
+    [animalId]
   );
 
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
-      try {
-        window.speechSynthesis?.cancel();
-      } catch {
-        /* ignore */
-      }
     },
     []
   );
 
-  return { talk, say, tts, setTts };
+  return { talk, say };
 }
 
 export function SpeechBubble({ talk, style }: { talk: Talk | null; style?: CSSProperties }) {

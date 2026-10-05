@@ -29,7 +29,10 @@ export type Art =
   | { kind: 'firefly' }
   | { kind: 'fish'; body: string; fin: string; stripes?: boolean };
 
-export type Voice = 'tweet' | 'buzz' | 'squeak' | 'roar' | 'blub' | 'pop';
+export type Voice =
+  | 'tweet' | 'buzz' | 'squeak' | 'roar' | 'blub' | 'pop'
+  // recorded cries
+  | 'bark' | 'meow' | 'peep' | 'neigh' | 'hoot' | 'croak' | 'quack';
 
 export interface Creature {
   loco: Loco;
@@ -51,11 +54,11 @@ const BY_ID: Record<string, Creature> = {
   // 친구 (characters)
   char_dragon: { loco: 'fly', art: emoji('🐉'), size: 66, speed: 70, voice: 'roar', trail: '✨' },
   char_axolotl: { loco: 'crawl', art: emoji('🦎'), size: 50, speed: 30, voice: 'squeak' },
-  char_owl: { loco: 'fly', art: bird('owl'), size: 58, speed: 60, voice: 'tweet' },
+  char_owl: { loco: 'fly', art: bird('owl'), size: 58, speed: 60, voice: 'hoot' },
   char_hamster: { loco: 'hop', art: emoji('🐹'), size: 46, speed: 60, voice: 'squeak' },
-  char_frog: { loco: 'hop', art: emoji('🐸'), size: 48, speed: 70, voice: 'pop' },
+  char_frog: { loco: 'hop', art: emoji('🐸'), size: 48, speed: 70, voice: 'croak' },
   char_koala: { loco: 'walk', art: emoji('🐨'), size: 54, speed: 28, voice: 'squeak' },
-  char_swan: { loco: 'walk', art: emoji('🦢'), size: 58, speed: 32, voice: 'tweet' },
+  char_swan: { loco: 'walk', art: emoji('🦢'), size: 58, speed: 32, voice: 'quack' },
   char_whale: { loco: 'swim', art: emoji('🐳'), size: 66, speed: 34, voice: 'blub', trail: '🫧' },
   char_dino: { loco: 'walk', art: emoji('🦖'), size: 62, speed: 48, voice: 'roar' },
   char_peacock: { loco: 'walk', art: emoji('🦚'), size: 62, speed: 32, voice: 'tweet' },
@@ -80,10 +83,10 @@ const BY_ID: Record<string, Creature> = {
   // 땅 친구
   comp_snail: { loco: 'crawl', art: emoji('🐌'), size: 34, speed: 9, voice: 'pop' },
   comp_turtle: { loco: 'crawl', art: emoji('🐢'), size: 42, speed: 16, voice: 'pop' },
-  comp_chick: { loco: 'hop', art: emoji('🐥'), size: 36, speed: 55, voice: 'tweet' },
+  comp_chick: { loco: 'hop', art: emoji('🐥'), size: 36, speed: 55, voice: 'peep' },
   comp_bunny: { loco: 'hop', art: emoji('🐇'), size: 44, speed: 80, voice: 'squeak' },
-  comp_puppy: { loco: 'walk', art: emoji('🐕'), size: 50, speed: 70, voice: 'squeak' },
-  comp_kitten: { loco: 'walk', art: emoji('🐈'), size: 46, speed: 55, voice: 'squeak' },
+  comp_puppy: { loco: 'walk', art: emoji('🐕'), size: 50, speed: 70, voice: 'bark' },
+  comp_kitten: { loco: 'walk', art: emoji('🐈'), size: 46, speed: 55, voice: 'meow' },
 
   // 물 친구
   comp_fish: { loco: 'swim', art: { kind: 'fish', body: '#FF922B', fin: '#FFF3BF', stripes: true }, size: 46, speed: 40, voice: 'blub', trail: '🫧' },
@@ -144,7 +147,7 @@ export function creatureForBuddy(animal: BuddyAnimal | undefined): Creature {
     art: emoji(animal?.emoji || '🐣'),
     size: 80,
     speed: id === 'penguin' ? 38 : id === 'unicorn' ? 70 : 55,
-    voice: id === 'chick' || id === 'penguin' ? 'tweet' : 'squeak',
+    voice: id === 'dog' ? 'bark' : id === 'cat' ? 'meow' : id === 'unicorn' ? 'neigh' : id === 'chick' ? 'peep' : 'squeak',
   };
 }
 

@@ -9,7 +9,7 @@
 // and anything on the ground pushes neighbours away so nobody ends up
 // standing on top of someone else.
 
-import { Creature, isAirborneLoco } from './creatures';
+import { Creature, Voice, isAirborneLoco } from './creatures';
 import { TrickId } from './petCare';
 
 export type Pose =
@@ -20,7 +20,7 @@ type Brain =
   | 'idle' | 'goto' | 'sleep' | 'eat' | 'dance' | 'held' | 'fall' | 'chase' | 'goEat' | 'dash'
   | 'air' | 'land' | 'perched' | 'tohead' | 'headperch';
 
-export type SoundName = 'pop' | 'tweet' | 'buzz' | 'squeak' | 'roar' | 'blub' | 'boing' | 'chomp' | 'melody' | 'sparkle';
+export type SoundName = Voice | 'boing' | 'chomp' | 'melody' | 'sparkle';
 
 export interface Actor {
   key: string;

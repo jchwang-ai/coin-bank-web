@@ -28,7 +28,7 @@ export interface SceneCtx {
   /** Sprite size that fits the screen. */
   size: number;
   accessories: { hat?: string; face?: string; held?: string };
-  say: (key: LineKey | { text: string }, mood?: 'happy' | 'sad' | 'normal') => void;
+  say: (key: LineKey | { text: string; raw?: boolean }, mood?: 'happy' | 'sad' | 'normal') => void;
   /** Finishes a care activity on the server (handles errors and level-ups). */
   care: (kind: CareKind) => Promise<CareResult | null>;
   feed: (foodId: FoodId) => Promise<{ favorite: boolean } | null>;
