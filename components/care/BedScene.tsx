@@ -71,6 +71,7 @@ export default function BedScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk | nu
       say('notSleepy', 'happy');
       return;
     }
+    if (!ctx.precheck(true)) return;
     playPop();
     progressRef.current = 0;
     finished.current = false;

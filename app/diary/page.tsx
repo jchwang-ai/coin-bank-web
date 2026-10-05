@@ -27,17 +27,24 @@ import { formatCardDate, isToday, moodOf, todayKey } from '@/lib/diary';
 import { ShopItem, SlotId } from '@/lib/characterShop';
 import { animalOf } from '@/lib/diaryPet';
 import {
+  Block,
+  DAILY,
   FOODS,
   FULL_LIMIT,
   FoodId,
   PetState,
+  StudyRewards,
   TRICKS,
   friendshipLevel,
   moodOf as petMoodOf,
   tricksForLevel,
 } from '@/lib/petCare';
 import { getDiaryOverview, setDiaryPet, DiaryListItem } from './actions';
-import { feedPet, getPetState, playWithPet } from './petActions';
+import { extendPlayTime, feedPet, getPetState, playWithPet } from './petActions';
+import { EGG_BLOCK, XP_CAP_NOTE, limitBlock } from '@/lib/petBlocks';
+import HintSheet, { HintAction } from '@/components/care/HintSheet';
+import FriendCareSheet from '@/components/care/FriendCareSheet';
+import { itemById } from '@/lib/characterShop';
 import {
   getShopState,
   buyItem,
@@ -83,6 +90,9 @@ export default function DiaryPage() {
   const [trickNews, setTrickNews] = useState<number | null>(null);
   const [introOpen, setIntroOpen] = useState(false);
   const [careScene, setCareScene] = useState<SceneId | null>(null);
+  const [hint, setHint] = useState<Block | null>(null);
+  const [friendSheet, setFriendSheet] = useState<string | null>(null);
+  const [rewardNews, setRewardNews] = useState<StudyRewards | null>(null);
 
   const refreshShop = async () => {
     const s = await getShopState();
@@ -115,7 +125,10 @@ export default function DiaryPage() {
 
     getPetState()
       .then((s) => {
-        if (!cancelled) setPet(s);
+        if (cancelled) return;
+        setPet(s);
+        // Study done elsewhere (diary, English app) just paid out — say so.
+        if (s.rewards) setRewardNews(s.rewards);
       })
       .catch((err) => console.error('Pet state load failed:', err));
 
@@ -192,15 +205,25 @@ export default function DiaryPage() {
     });
   };
 
+  const isEgg = totalCompleted < 1;
+
   const handleFeed = async (foodId: FoodId) => {
+    if (!pet) return;
     const food = FOODS.find((f) => f.id === foodId)!;
-    if (pet && pet.fullness >= FULL_LIMIT) throw new Error('배불러서 더 못 먹어요! 조금 있다 줘요 😋');
+    // Explain up front instead of dropping food that can't be eaten.
+    if (isEgg) return setHint(EGG_BLOCK);
+    if (pet.daily.activities >= pet.daily.limit) return setHint(limitBlock(pet));
+    if (pet.fullness >= FULL_LIMIT) {
+      return setHint({ code: 'full', emoji: '😋', title: '배불러서 못 먹어요', reason: '배부름이 거의 가득 찼어요.', howTo: ['산책을 하면 배가 고파져요', '시간이 조금 지나면 다시 먹을 수 있어요'] });
+    }
     // Drop the food right away so the tap feels instant; the server
     // re-checks stock/fullness and is the source of truth.
     playPop();
     setStageSignal({ key: Date.now(), kind: 'feed', emoji: food.emoji });
     const res = await feedPet(foodId);
+    if (!res.ok) return setHint(res.block);
     setPet(res.state);
+    if (res.xpCapped) setToast(XP_CAP_NOTE);
     // Let the buddy finish eating before announcing a new trick.
     if (res.levelUpTo) {
       const level = res.levelUpTo;
@@ -208,6 +231,40 @@ export default function DiaryPage() {
         playChime();
         setTrickNews(level);
       }, 3600);
+    }
+  };
+
+  const handleExtend = async () => {
+    const res = await extendPlayTime();
+    if (!res.ok) return setHint(res.block);
+    setPet(res.state);
+    setHint(null);
+    playChime();
+    setToast(`💖 하트 1개로 ${DAILY.extendBy}번 더 돌볼 수 있어요! (남은 하트 ${res.heartsLeft}개)`);
+  };
+
+  /** Buttons under a "why not" explanation. */
+  const hintActions = (b: Block): HintAction[] => {
+    const open = (scene: SceneId) => () => {
+      setHint(null);
+      setFriendSheet(null);
+      setCareScene(scene);
+    };
+    switch (b.code) {
+      case 'cp':
+        return [{ label: '🧠 공부방에서 ⭐ 모으기', onClick: open('study') }];
+      case 'limit':
+        return pet && pet.daily.extensions < DAILY.maxExtensions
+          ? [{ label: `💖 하트 1개 쓰고 ${DAILY.extendBy}번 더 하기`, onClick: handleExtend }]
+          : [];
+      case 'stock':
+        return [{ label: '🛒 먹이 가게 가기', onClick: open('kitchen') }];
+      case 'tired':
+        return [{ label: '🌙 침실로 가기', onClick: open('bed') }];
+      case 'locked':
+        return isEgg ? [] : [{ label: '🏠 친구 돌보러 가기', onClick: open('living') }];
+      default:
+        return [];
     }
   };
 
@@ -234,7 +291,6 @@ export default function DiaryPage() {
     return <div className="pt-24 text-center text-[#8e8e93]">불러오는 중...</div>;
   }
 
-  const isEgg = totalCompleted < 1;
   const friendLv = friendshipLevel(pet?.xp ?? 0).level;
   const petMood = pet ? petMoodOf(pet.fullness, pet.happiness, pet.clean, pet.energy) : undefined;
   const buddyName = animalOf(petAnimal)?.name ?? '친구';
@@ -250,6 +306,7 @@ export default function DiaryPage() {
         playPop();
         setCareScene(scene ?? 'living');
       }}
+      onHint={setHint}
       compact={compact}
     />
   );
@@ -298,6 +355,13 @@ export default function DiaryPage() {
               onPlay={handlePlay}
               fullscreenFooter={carePanel(true)}
               furHue={pet?.furHue ?? 0}
+              friendXp={pet?.friends}
+              petXp={pet?.xp ?? 0}
+              onHint={setHint}
+              onFriendCare={(id) => {
+                playPop();
+                setFriendSheet(id);
+              }}
             />
 
             {/* Gems + shop entry points */}
@@ -520,6 +584,41 @@ export default function DiaryPage() {
             playPop();
           }}
         />
+      )}
+
+      {hint && <HintSheet block={hint} actions={hintActions(hint)} onClose={() => setHint(null)} />}
+
+      {friendSheet && pet && itemById(friendSheet) && (
+        <FriendCareSheet
+          item={itemById(friendSheet)!}
+          pet={pet}
+          onState={setPet}
+          showBlock={setHint}
+          onClose={() => setFriendSheet(null)}
+        />
+      )}
+
+      {rewardNews && (
+        <div className="fixed inset-0 z-[92] flex items-center justify-center bg-black/45 px-6" onClick={() => setRewardNews(null)}>
+          <div className="animate-stamp-in relative w-full max-w-xs rounded-3xl bg-white px-6 py-6 text-center shadow-2xl">
+            <p className="text-5xl">📚</p>
+            <p className="mt-2 text-[19px] font-bold text-[#1c1c1e]">공부 보상이 도착했어요!</p>
+            <div className="mt-3 space-y-1.5 text-left text-[14px]">
+              {rewardNews.vocabXp + rewardNews.vocabCp > 0 && (
+                <p className="rounded-xl bg-sky-50 px-3 py-2">
+                  🔤 영어 단어 공부 →{rewardNews.vocabXp ? ` 💞 우정 +${rewardNews.vocabXp}` : ''}
+                  {rewardNews.vocabCp ? ` ⭐ +${rewardNews.vocabCp}` : ''}
+                </p>
+              )}
+              {rewardNews.diaryCp > 0 && <p className="rounded-xl bg-emerald-50 px-3 py-2">📔 일기 쓰기 → ⭐ +{rewardNews.diaryCp}</p>}
+            </div>
+            <p className="mt-2 text-[11px] text-[#8e8e93]">⭐ 돌봄 포인트로 친구를 목욕·산책시켜줄 수 있어요</p>
+            <button onClick={() => setRewardNews(null)} className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 py-3 text-[15px] font-bold text-white">
+              좋아요!
+            </button>
+            <EmojiBurst trigger={1} emojis={['⭐', '💞', '📚', '✨']} count={12} />
+          </div>
+        </div>
       )}
 
       {careScene && pet && petAnimal && (

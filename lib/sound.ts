@@ -94,6 +94,11 @@ export function playSaveBlip() {
   tone(ctx, 784, now + 0.08, 0.16, 0.1, 'triangle'); // G5
 }
 
+/** Random factor in [a, b] — keeps repeated sounds from being identical. */
+function jitter(a: number, b: number) {
+  return a + Math.random() * (b - a);
+}
+
 /** Pitch glide from f1 to f2 — the building block for creature voices. */
 function sweep(
   ctx: AudioContext,
@@ -142,7 +147,9 @@ export function playSqueak() {
   const ctx = getContext();
   if (!ctx) return;
   const now = ctx.currentTime;
-  sweep(ctx, 900, 1500, now, 0.12, 0.08, 'triangle');
+  const k = jitter(0.8, 1.25);
+  const n = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) sweep(ctx, 900 * k, 1500 * k * jitter(0.9, 1.1), now + i * 0.13, 0.1, 0.08, 'triangle');
 }
 
 /** Baby-dragon / dino "rawr" — low but cute, never scary. */
@@ -150,7 +157,9 @@ export function playRoar() {
   const ctx = getContext();
   if (!ctx) return;
   const now = ctx.currentTime;
-  sweep(ctx, 260, 140, now, 0.35, 0.09, 'sawtooth');
+  const k = jitter(0.8, 1.3);
+  sweep(ctx, 260 * k, 140 * k, now, jitter(0.25, 0.45), 0.09, 'sawtooth');
+  if (Math.random() < 0.35) sweep(ctx, 300 * k, 170 * k, now + 0.4, 0.2, 0.07, 'sawtooth');
 }
 
 /** Bubbly blub for fish and whales. */
@@ -158,8 +167,11 @@ export function playBlub() {
   const ctx = getContext();
   if (!ctx) return;
   const now = ctx.currentTime;
-  sweep(ctx, 300, 700, now, 0.09, 0.08);
-  sweep(ctx, 400, 900, now + 0.1, 0.08, 0.07);
+  const n = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    const k = jitter(0.8, 1.3);
+    sweep(ctx, 300 * k, 750 * k, now + i * jitter(0.08, 0.13), 0.08, 0.07);
+  }
 }
 
 /** Springy boing for jumps and ball kicks. */
@@ -364,6 +376,7 @@ const ANIMAL_CLIPS: Record<string, string[]> = {
 
 const CREATURE_CLIPS = {
   tweet: ['bird-1', 'bird-2', 'bird-3'],
+  bunny: ['rabbit-1', 'rabbit-2', 'rabbit-3'],
   hoot: ['owl-1'],
   croak: ['frog-1'],
   quack: ['duck-1'],
@@ -390,22 +403,48 @@ export function preloadAnimalSounds() {
   for (const list of [...Object.values(ANIMAL_CLIPS), ...Object.values(CREATURE_CLIPS)]) list.forEach(loadClip);
 }
 
-/** Plays a random clip from the list. Returns false if none is ready yet. */
-function playClip(names: string[], rate = 1, gain = 0.7): boolean {
+const lastClip = new Map<string, string>();
+
+function startBuffer(ctx: AudioContext, buf: AudioBuffer, at: number, rate: number, gain: number) {
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = rate;
+  // A tiny random detune on top of the rate makes repeats feel alive.
+  try {
+    src.detune.value = jitter(-60, 60);
+  } catch {
+    /* older Safari: no detune */
+  }
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  src.connect(g);
+  g.connect(ctx.destination);
+  src.start(at);
+}
+
+/**
+ * Plays a random clip from the list (never the same one twice in a row),
+ * with a little random pitch and volume, and sometimes a second cry right
+ * after — so the same animal never sounds exactly the same. Returns false if
+ * no clip is ready yet.
+ */
+function playClip(names: string[], rate = 1, gain = 0.7, allowDouble = true): boolean {
   const ctx = getContext();
   if (!ctx || !names.length) return false;
   const ready = names.filter((n) => clips.get(n) instanceof AudioBuffer);
   names.forEach(loadClip);
   if (!ready.length) return false;
-  const buf = clips.get(ready[Math.floor(Math.random() * ready.length)]) as AudioBuffer;
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.playbackRate.value = rate;
-  const g = ctx.createGain();
-  g.gain.value = gain;
-  src.connect(g);
-  g.connect(ctx.destination);
-  src.start();
+  const key = names.join();
+  const fresh = ready.length > 1 ? ready.filter((n) => n !== lastClip.get(key)) : ready;
+  const name = fresh[Math.floor(Math.random() * fresh.length)];
+  lastClip.set(key, name);
+  const buf = clips.get(name) as AudioBuffer;
+  const now = ctx.currentTime;
+  startBuffer(ctx, buf, now, rate * jitter(0.93, 1.08), gain * jitter(0.8, 1));
+  if (allowDouble && Math.random() < 0.25) {
+    const second = clips.get(ready[Math.floor(Math.random() * ready.length)]) as AudioBuffer;
+    startBuffer(ctx, second, now + buf.duration / rate * jitter(0.55, 0.9), rate * jitter(1.02, 1.15), gain * 0.7);
+  }
   return true;
 }
 
@@ -422,4 +461,42 @@ export function playAnimalVoice(animalId: string | null | undefined, mood: 'happ
 /** Cries for stage friends that have their own recording. */
 export function playCreatureVoice(kind: keyof typeof CREATURE_CLIPS) {
   if (!playClip(CREATURE_CLIPS[kind], 0.95 + Math.random() * 0.12)) playPop();
+}
+
+/**
+ * One entry point for every creature's cry (stage friends, shop friends in
+ * the care sheet). Recorded where we have recordings, varied synth otherwise.
+ */
+export function playVoice(voice: string, mood: 'happy' | 'sad' | 'normal' = 'happy') {
+  switch (voice) {
+    case 'bark':
+      return playAnimalVoice('dog', mood);
+    case 'meow':
+      return playAnimalVoice('cat', mood);
+    case 'peep':
+      return playAnimalVoice('chick', mood);
+    case 'neigh':
+      return playAnimalVoice('unicorn', mood);
+    case 'tweet':
+      return playTweet();
+    case 'buzz':
+      return playBuzz();
+    case 'bunny':
+    case 'hoot':
+    case 'croak':
+    case 'quack':
+      return playCreatureVoice(voice);
+    case 'squeak':
+      return playSqueak();
+    case 'roar':
+      return playRoar();
+    case 'blub':
+      return playBlub();
+    default: {
+      const ctx = getContext();
+      if (!ctx) return;
+      const k = jitter(0.8, 1.4);
+      sweep(ctx, 700 * k, 1300 * k, ctx.currentTime, 0.1, 0.08, 'sine');
+    }
+  }
 }

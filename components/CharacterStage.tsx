@@ -14,7 +14,8 @@ import { createPortal } from 'react-dom';
 import { ShopItem, itemById } from '@/lib/characterShop';
 import { animalOf, computeGrowth } from '@/lib/diaryPet';
 import { creatureForBuddy, creatureForItem, isRoamer } from '@/lib/creatures';
-import { TrickId } from '@/lib/petCare';
+import { Block, TrickId, TRICKS, friendLevelOf } from '@/lib/petCare';
+import { trickBlock } from '@/lib/petBlocks';
 import {
   Actor,
   FxSpec,
@@ -79,6 +80,14 @@ interface CharacterStageProps {
   fullscreenFooter?: ReactNode;
   /** Fur dye from the grooming salon (hue-rotate degrees). */
   furHue?: number;
+  /** Shop friends' growth — higher levels stand a little bigger. */
+  friendXp?: Record<string, { xp: number }>;
+  /** Main buddy's friendship XP, to explain locked tricks. */
+  petXp?: number;
+  /** Shows "why is this locked / what to do". */
+  onHint?: (b: Block) => void;
+  /** Tapped a shop friend's "돌봐주기" chip. */
+  onFriendCare?: (itemId: string) => void;
 }
 
 const CARD_HEIGHT = 230;
@@ -101,6 +110,7 @@ const SOUNDS: Record<SoundName, () => void> = {
   hoot: () => playCreatureVoice('hoot'),
   croak: () => playCreatureVoice('croak'),
   quack: () => playCreatureVoice('quack'),
+  bunny: () => playCreatureVoice('bunny'),
 };
 
 function isNightNow() {
@@ -260,6 +270,10 @@ function StageView({
   onPlay,
   fullscreenFooter,
   furHue = 0,
+  friendXp,
+  petXp = 0,
+  onHint,
+  onFriendCare,
   onExpand,
   onClose,
 }: StageViewProps) {
@@ -295,11 +309,12 @@ function StageView({
       const item = itemById(id) || customItems.find((c) => c.id === id);
       if (!item || !isRoamer(item)) continue;
       const c = creatureForItem(item);
-      list.push({ key: item.id, creature: c, isMain: false, base: c.size });
+      const lv = friendLevelOf(friendXp?.[item.id]?.xp ?? 0).level;
+      list.push({ key: item.id, creature: c, isMain: false, base: Math.round(c.size * (1 + (lv - 1) * 0.08)) });
       if (list.length >= (isFull ? 18 : 7)) break;
     }
     return list;
-  }, [animal, isEgg, growth.stage.size, isFull, equipped, ownedIds, customItems]);
+  }, [animal, isEgg, growth.stage.size, isFull, equipped, ownedIds, customItems, friendXp]);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const fxRef = useRef<FxHandle>(null);
@@ -309,6 +324,13 @@ function StageView({
   const ballEl = useRef<HTMLDivElement>(null);
   const [hasBall, setHasBall] = useState(false);
   const [party, setParty] = useState(false);
+  // "💞 돌봐주기" chip that pops up over a tapped shop friend.
+  const [chip, setChip] = useState<{ key: string; x: number; y: number; t: number } | null>(null);
+  useEffect(() => {
+    if (!chip) return;
+    const t = setTimeout(() => setChip(null), 3500);
+    return () => clearTimeout(t);
+  }, [chip]);
   // Size-dependent decor, copied out of the world after each measure.
   const [layout, setLayout] = useState<{ flowers: World['flowers']; unit: number }>({ flowers: [], unit: 1 });
 
@@ -566,7 +588,12 @@ function StageView({
       const a = findActor(d.key);
       if (a) {
         if (d.moved) release(world, a, d.vx, d.vy);
-        else tapActor(world, a);
+        else {
+          tapActor(world, a);
+          if (!a.isMain && onFriendCare) {
+            setChip({ key: a.key, x: Math.max(50, Math.min(world.w - 50, a.x)), y: Math.max(40, a.y - a.z - a.size - 6), t: Date.now() });
+          }
+        }
       }
       return;
     }
@@ -720,6 +747,20 @@ function StageView({
 
       <FxLayer ref={fxRef} />
 
+      {chip && (
+        <button
+          key={chip.t}
+          onClick={() => {
+            setChip(null);
+            onFriendCare?.(chip.key);
+          }}
+          className="animate-pop-in absolute z-[4500] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-1.5 text-[12px] font-bold text-white shadow-lg"
+          style={{ left: chip.x, top: chip.y }}
+        >
+          💞 돌봐주기
+        </button>
+      )}
+
       {party && <div className="stage-disco" />}
 
       {/* Overlay UI */}
@@ -739,7 +780,12 @@ function StageView({
             🎉 파티
           </button>
           <button
-            onClick={() => (canBall ? toggleBall() : playPop())}
+            onClick={() => {
+              if (canBall) return toggleBall();
+              playPop();
+              const ball = TRICKS.find((t) => t.id === 'ball');
+              if (ball) onHint?.(trickBlock(ball, petXp));
+            }}
             className={`rounded-full px-3 py-2 text-[13px] font-bold shadow active:scale-90 ${
               canBall ? 'bg-white/85 text-[#1c1c1e]' : 'bg-white/50 text-black/40'
             }`}

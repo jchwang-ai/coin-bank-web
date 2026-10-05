@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShopItem, SlotId, itemById } from '@/lib/characterShop';
-import { CareKind, FoodId, PetState } from '@/lib/petCare';
+import { Block, CareKind, DAILY, FoodId, PetState } from '@/lib/petCare';
+import { XP_CAP_NOTE, cpBlock, limitBlock } from '@/lib/petBlocks';
+import { isRoamer } from '@/lib/creatures';
 import { moodLine } from '@/lib/petLines';
-import { playPop } from '@/lib/sound';
-import { buyFood, doCare, feedPet, setFurHue } from '@/app/diary/petActions';
+import { playChime, playPop } from '@/lib/sound';
+import { buyFood, doCare, extendPlayTime, feedPet, setFurHue } from '@/app/diary/petActions';
 import { usePetTalk } from './common';
+import HintSheet, { HintAction } from './HintSheet';
+import FriendCareSheet from './FriendCareSheet';
+import StudyScene from './StudyScene';
 import { SCENES, SceneCtx, SceneId } from './types';
 import LivingScene from './LivingScene';
 import KitchenScene from './KitchenScene';
@@ -99,52 +104,100 @@ export default function CareRoom(props: CareRoomProps) {
     [scene, curtain.phase]
   );
 
+  const [hint, setHint] = useState<Block | null>(null);
+  const [friendId, setFriendId] = useState<string | null>(null);
+  const showBlock = useCallback((b: Block) => setHint(b), []);
+
+  const precheck = useCallback(
+    (usesCp: boolean) => {
+      if (pet.daily.activities >= pet.daily.limit) {
+        setHint(limitBlock(pet));
+        return false;
+      }
+      if (usesCp && pet.cp < pet.daily.nextCost) {
+        setHint(cpBlock(pet));
+        return false;
+      }
+      return true;
+    },
+    [pet]
+  );
+
   const care = useCallback(
     async (kind: CareKind) => {
-      try {
-        const res = await doCare(kind);
-        setPet(res.state);
-        if (res.levelUpTo) setTimeout(() => onLevelUp(res.levelUpTo!), 1800);
-        return { state: res.state, xpGained: res.xpGained, found: res.found };
-      } catch (err) {
-        say({ text: err instanceof Error ? err.message : '잠깐 문제가 생겼어요', raw: true }, 'sad');
+      const res = await doCare(kind);
+      if (!res.ok) {
+        setHint(res.block);
         return null;
       }
+      setPet(res.state);
+      if (res.xpCapped) toast(XP_CAP_NOTE);
+      if (res.levelUpTo) setTimeout(() => onLevelUp(res.levelUpTo!), 1800);
+      return { state: res.state, xpGained: res.xpGained, xpCapped: res.xpCapped, found: res.found };
     },
-    [setPet, onLevelUp, say]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setPet, onLevelUp]
   );
 
   const feed = useCallback(
     async (foodId: FoodId) => {
-      try {
-        const res = await feedPet(foodId);
-        setPet(res.state);
-        if (res.levelUpTo) setTimeout(() => onLevelUp(res.levelUpTo!), 2200);
-        // What goes in must come out — sometimes. Real pets!
-        if (Math.random() < 0.4) setTimeout(() => setPoop(true), 9000);
-        return { favorite: res.favorite };
-      } catch (err) {
-        say({ text: err instanceof Error ? err.message : '먹이를 주지 못했어요', raw: true }, 'sad');
+      const res = await feedPet(foodId);
+      if (!res.ok) {
+        setHint(res.block);
         return null;
       }
+      setPet(res.state);
+      if (res.xpCapped) toast(XP_CAP_NOTE);
+      if (res.levelUpTo) setTimeout(() => onLevelUp(res.levelUpTo!), 2200);
+      // What goes in must come out — sometimes. Real pets!
+      if (Math.random() < 0.4) setTimeout(() => setPoop(true), 9000);
+      return { favorite: res.favorite, xpCapped: res.xpCapped };
     },
-    [setPet, onLevelUp, say]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setPet, onLevelUp]
   );
 
   const buy = useCallback(
     async (foodId: FoodId, qty: number) => {
-      try {
-        const res = await buyFood(foodId, qty);
-        setPet(res.state);
-        setGemsLeft(res.gemsLeft);
-        return true;
-      } catch (err) {
-        toast(err instanceof Error ? err.message : '사지 못했어요');
+      const res = await buyFood(foodId, qty);
+      if (!res.ok) {
+        setHint(res.block);
         return false;
       }
+      setPet(res.state);
+      setGemsLeft(res.gemsLeft);
+      return true;
     },
-    [setPet, setGemsLeft, toast]
+    [setPet, setGemsLeft]
   );
+
+  const extend = useCallback(async () => {
+    const res = await extendPlayTime();
+    if (!res.ok) {
+      setHint(res.block);
+      return;
+    }
+    setPet(res.state);
+    setHint(null);
+    playChime();
+    toast(`💖 하트 1개로 ${DAILY.extendBy}번 더 돌볼 수 있어요! (남은 하트 ${res.heartsLeft}개)`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setPet]);
+
+  const hintActions = (b: Block): HintAction[] => {
+    switch (b.code) {
+      case 'cp':
+        return [{ label: '🧠 공부방에서 ⭐ 모으기', onClick: () => { setHint(null); setFriendId(null); go('study'); } }];
+      case 'limit':
+        return pet.daily.extensions < DAILY.maxExtensions ? [{ label: `💖 하트 1개 쓰고 ${DAILY.extendBy}번 더 하기`, onClick: extend }] : [];
+      case 'stock':
+        return [{ label: '🛒 먹이 가게 가기', onClick: () => { setHint(null); setFriendId(null); go('kitchen'); } }];
+      case 'tired':
+        return [{ label: '🌙 침실로 가기', onClick: () => { setHint(null); go('bed'); } }];
+      default:
+        return [];
+    }
+  };
 
   const setHue = useCallback(
     async (hue: number) => {
@@ -177,6 +230,16 @@ export default function CareRoom(props: CareRoomProps) {
     [props.ownedIds, props.customItems]
   );
 
+  const friends = useMemo(
+    () =>
+      props.ownedIds
+        .map((id) => resolve(id))
+        .filter((i): i is ShopItem => !!i && (i.slot === 'character' || i.slot === 'companion') && isRoamer(i)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.ownedIds, props.customItems]
+  );
+  const friendItem = friendId ? friends.find((f) => f.id === friendId) : undefined;
+
   const ctx: SceneCtx = {
     animalId,
     emoji,
@@ -188,6 +251,9 @@ export default function CareRoom(props: CareRoomProps) {
     care,
     feed,
     buy,
+    patchPet: (p) => setPet({ ...pet, ...p }),
+    showBlock,
+    precheck,
     setHue,
     gemsLeft,
     go,
@@ -200,7 +266,8 @@ export default function CareRoom(props: CareRoomProps) {
   };
 
   const sceneEl = {
-    living: <LivingScene ctx={ctx} talk={talk} />,
+    study: <StudyScene ctx={ctx} talk={talk} />,
+    living: <LivingScene ctx={ctx} talk={talk} friends={friends} onFriend={setFriendId} />,
     kitchen: <KitchenScene ctx={ctx} talk={talk} />,
     bath: <BathScene ctx={ctx} talk={talk} />,
     groom: <GroomScene ctx={ctx} talk={talk} />,
@@ -229,6 +296,23 @@ export default function CareRoom(props: CareRoomProps) {
             💎 {gemsLeft}
           </span>
         </div>
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold">
+          <button onClick={() => go('study')} className="rounded-full bg-amber-100 px-2 py-1 text-amber-700 active:scale-95">
+            ⭐ {pet.cp}
+          </button>
+          <button
+            onClick={() => (pet.daily.activities >= pet.daily.limit ? setHint(limitBlock(pet)) : toast(`오늘 ${pet.daily.limit - pet.daily.activities}번 더 돌볼 수 있어요 · 다음 돌봄 ⭐ ${pet.daily.nextCost}개`))}
+            className="rounded-full bg-sky-100 px-2 py-1 text-sky-700 active:scale-95"
+          >
+            ⏰ {Math.max(0, pet.daily.limit - pet.daily.activities)}/{pet.daily.limit}
+          </button>
+          <button
+            onClick={() => toast(pet.daily.xp >= DAILY.xpBuddy ? XP_CAP_NOTE : `오늘 우정 ${pet.daily.xp}/${DAILY.xpBuddy}만큼 자랐어요`)}
+            className="rounded-full bg-violet-100 px-2 py-1 text-violet-700 active:scale-95"
+          >
+            💞 오늘 {pet.daily.xp}/{DAILY.xpBuddy}
+          </button>
+        </div>
         <div className="mt-2 flex items-center gap-2.5">
           <Stat icon="🍚" value={pet.fullness} low={pet.fullness < 30} />
           <Stat icon="😊" value={pet.happiness} low={pet.happiness < 30} />
@@ -254,6 +338,11 @@ export default function CareRoom(props: CareRoomProps) {
           </div>
         )}
       </div>
+
+      {hint && <HintSheet block={hint} actions={hintActions(hint)} onClose={() => setHint(null)} />}
+      {friendItem && (
+        <FriendCareSheet item={friendItem} pet={pet} onState={setPet} showBlock={setHint} onClose={() => setFriendId(null)} />
+      )}
 
       {/* Rooms */}
       <nav className="safe-bottom shrink-0 bg-white px-2 pt-1.5">

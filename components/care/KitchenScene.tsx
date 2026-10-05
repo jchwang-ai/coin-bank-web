@@ -37,6 +37,7 @@ export default function KitchenScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk 
       say('full');
       return;
     }
+    if (!ctx.precheck(false)) return;
     setBusy(true);
     playPop();
     setToss({ emoji: food.emoji, key: Date.now() });

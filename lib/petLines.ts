@@ -12,7 +12,8 @@ export type LineKey =
   | 'brush' | 'brushDone' | 'dress' | 'dye'
   | 'walkStart' | 'walkStep' | 'butterfly' | 'flower' | 'puddle' | 'poop' | 'poopClean' | 'friend' | 'walkDone' | 'tooTired'
   | 'sleepy' | 'notSleepy' | 'dream' | 'wake'
-  | 'shopThanks' | 'study' | 'morning' | 'night' | 'welcome';
+  | 'shopThanks' | 'study' | 'morning' | 'night' | 'welcome'
+  | 'quizRight' | 'quizWrong' | 'quizStart' | 'friendHi';
 
 const LINES: Record<LineKey, string[]> = {
   tap: ['안녕!', '헤헤 간지러워!', '나랑 놀자!', '보고 싶었어!', '너 최고야!', '뭐 하고 놀까?', '나 귀엽지?', '산책 갈래?', '또 왔구나!', '같이 있자!'],
@@ -54,6 +55,10 @@ const LINES: Record<LineKey, string[]> = {
   morning: ['좋은 아침!', '오늘도 놀자!'],
   night: ['밤이야~ 졸려', '오늘도 수고했어!'],
   welcome: ['왔구나!', '기다렸어!', '드디어 왔다!'],
+  quizRight: ['정답이야!', '우와 천재다!', '최고야!', '맞았어! 대단해!', '역시 너야!'],
+  quizWrong: ['괜찮아, 다시 해보자!', '아깝다~', '다음엔 맞힐 수 있어!', '천천히 생각해봐~'],
+  quizStart: ['같이 공부하자!', '문제 풀면 놀 수 있어!', '내가 응원할게!'],
+  friendHi: ['안녕!', '나도 놀아줘!', '헤헤 반가워!', '나 불렀어?'],
 };
 
 interface SpeechStyle {

@@ -211,6 +211,7 @@ export default function WalkScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk | n
   };
 
   const restart = () => {
+    if (!ctx.precheck(true)) return;
     posRef.current = 0;
     setPos(0);
     setEvents(makeEvents());

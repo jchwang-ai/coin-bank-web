@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { FOODS, FoodId, PetState, TRICKS, friendshipLevel, moodOf } from '@/lib/petCare';
+import { Block, CP, DAILY, FOODS, FoodId, PetState, TRICKS, friendshipLevel, moodOf } from '@/lib/petCare';
+import { EGG_BLOCK, trickBlock } from '@/lib/petBlocks';
 import { SceneId } from './care/types';
 
 interface PetCarePanelProps {
@@ -11,6 +12,8 @@ interface PetCarePanelProps {
   onFeed: (foodId: FoodId) => Promise<void>;
   /** Opens the 친구 돌보기 rooms (optionally straight into one). */
   onOpenCare?: (scene?: SceneId) => void;
+  /** Explains anything locked / used up. */
+  onHint?: (b: Block) => void;
   /** Compact row for the fullscreen footer. */
   compact?: boolean;
 }
@@ -30,7 +33,7 @@ const BASE_FOODS: FoodId[] = ['apple', 'cookie', 'cake'];
  * 친구 키우기 summary on the diary page: stats, quick feeding, friendship
  * level and the way into the care rooms.
  */
-export default function PetCarePanel({ state, isEgg, buddyName, onFeed, onOpenCare, compact }: PetCarePanelProps) {
+export default function PetCarePanel({ state, isEgg, buddyName, onFeed, onOpenCare, onHint, compact }: PetCarePanelProps) {
   const [busy, setBusy] = useState<FoodId | null>(null);
   const [message, setMessage] = useState('');
   const [showTricks, setShowTricks] = useState(false);
@@ -157,18 +160,74 @@ export default function PetCarePanel({ state, isEgg, buddyName, onFeed, onOpenCa
           ))}
         </div>
 
-        {onOpenCare && !isEgg && (
+        {/* Study → points → care */}
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <button onClick={() => onOpenCare?.('study')} className="rounded-2xl bg-amber-50 py-2 ring-1 ring-amber-200 active:scale-95">
+            <p className="text-[18px] font-bold text-amber-600">⭐ {state.cp}</p>
+            <p className="text-[10px] font-bold text-[#8e8e93]">돌봄 포인트</p>
+          </button>
           <button
-            onClick={() => onOpenCare()}
-            className="relative mt-3.5 w-full overflow-hidden rounded-2xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 py-3.5 text-left shadow-md shadow-fuchsia-500/20 transition-transform active:scale-[0.98]"
+            onClick={() =>
+              onHint?.({
+                code: 'other',
+                emoji: '⏰',
+                title: `오늘 남은 돌봄 ${Math.max(0, state.daily.limit - state.daily.activities)}번`,
+                reason: `친구 돌보기는 하루 ${state.daily.limit}번까지 할 수 있어요. 다음 돌봄에는 ⭐ ${state.daily.nextCost}개가 필요해요.`,
+                howTo: ['돌봄을 많이 할수록 ⭐가 조금씩 더 필요해요', `💖 하트 1개로 ${DAILY.extendBy}번 더 할 수 있어요 (하루 ${DAILY.maxExtensions}번)`, '내일이 되면 다시 처음부터!'],
+              })
+            }
+            className="rounded-2xl bg-sky-50 py-2 ring-1 ring-sky-200 active:scale-95"
           >
-            <span className="absolute -right-2 -top-3 text-6xl opacity-25">🏠</span>
-            <p className="px-4 text-[16px] font-bold text-white">🏠 {buddyName} 돌보러 가기</p>
-            <p className="px-4 text-[11px] font-semibold text-white/80">
-              목욕 · 빗질 · 산책 · 재우기 · 먹이 가게 — 오늘의 돌봄 {todayDone}/5
+            <p className="text-[18px] font-bold text-sky-600">
+              {Math.max(0, state.daily.limit - state.daily.activities)}
+              <span className="text-[11px]">/{state.daily.limit}</span>
+            </p>
+            <p className="text-[10px] font-bold text-[#8e8e93]">오늘 남은 돌봄</p>
+          </button>
+          <button
+            onClick={() =>
+              onHint?.({
+                code: 'other',
+                emoji: '💞',
+                title: `오늘 우정 ${state.daily.xp}/${DAILY.xpBuddy}`,
+                reason: `우정은 하루에 ${DAILY.xpBuddy}까지만 자라요. 매일 조금씩 크는 거예요!`,
+                howTo: ['🍎 밥 주기 · 🛁 돌봐주기로 자라요', '🔤 영어 단어 공부를 해도 자라요 (별 5개 = 우정 1)', '오늘 다 자라면 남은 공부 보상은 내일 받아요'],
+              })
+            }
+            className="rounded-2xl bg-violet-50 py-2 ring-1 ring-violet-200 active:scale-95"
+          >
+            <p className="text-[18px] font-bold text-violet-600">
+              {state.daily.xp}
+              <span className="text-[11px]">/{DAILY.xpBuddy}</span>
+            </p>
+            <p className="text-[10px] font-bold text-[#8e8e93]">오늘 자란 우정</p>
+          </button>
+        </div>
+
+        {onOpenCare && (
+          <button
+            onClick={() => (isEgg ? onHint?.(EGG_BLOCK) : onOpenCare())}
+            className={`relative mt-3 w-full overflow-hidden rounded-2xl py-3.5 text-left shadow-md transition-transform active:scale-[0.98] ${
+              isEgg ? 'bg-black/20' : 'bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 shadow-fuchsia-500/20'
+            }`}
+          >
+            <span className="absolute -right-2 -top-3 text-6xl opacity-25">{isEgg ? '🥚' : '🏠'}</span>
+            <p className="px-4 text-[16px] font-bold text-white">{isEgg ? '🔒 알이 깨어나면 돌볼 수 있어요' : `🏠 ${buddyName} 돌보러 가기`}</p>
+            <p className="px-4 text-[11px] font-semibold text-white/85">
+              {isEgg ? '눌러서 방법 보기' : `🧠 공부방 · 목욕 · 빗질 · 산책 · 재우기 — 오늘의 돌봄 ${todayDone}/5`}
             </p>
           </button>
         )}
+
+        {/* What studying earns */}
+        <div className="mt-3 rounded-2xl bg-black/[0.03] px-3 py-2.5">
+          <p className="text-[11px] font-bold text-[#1c1c1e]">📚 공부하면 친구가 좋아해요</p>
+          <div className="mt-1 grid grid-cols-1 gap-0.5 text-[11px] text-[#3a3a3c]">
+            <span>📔 일기 쓰기 → 🍎 사과 2개 + ⭐ {CP.perDiary}개</span>
+            <span>🔤 영어 단어 공부 → 💎 보석 + 🍪 쿠키 + ⭐ + 💞 우정</span>
+            <span>🧠 공부방 문제 맞히기 → ⭐ 1개 (틀리면 0개)</span>
+          </div>
+        </div>
       </div>
 
       <div className="px-4 pb-3.5 pt-3">
@@ -199,16 +258,17 @@ export default function PetCarePanel({ state, isEgg, buddyName, onFeed, onOpenCa
             {TRICKS.map((t) => {
               const learned = t.level <= lv.level;
               return (
-                <div
+                <button
                   key={t.id}
-                  className={`flex items-center gap-2 rounded-xl px-2.5 py-2 ${learned ? 'bg-white ring-1 ring-violet-200' : 'bg-black/[0.03]'}`}
+                  onClick={() => !learned && onHint?.(trickBlock(t, state.xp))}
+                  className={`flex items-center gap-2 rounded-xl px-2.5 py-2 text-left ${learned ? 'bg-white ring-1 ring-violet-200' : 'bg-black/[0.03] active:scale-95'}`}
                 >
                   <span className={`text-[20px] leading-none ${learned ? '' : 'opacity-30 grayscale'}`}>{learned ? t.emoji : '🔒'}</span>
                   <div className="min-w-0">
                     <p className={`truncate text-[12px] font-bold ${learned ? 'text-[#1c1c1e]' : 'text-[#c7c7cc]'}`}>{t.name}</p>
-                    <p className="truncate text-[9px] text-[#8e8e93]">{learned ? t.desc : `우정 Lv.${t.level}`}</p>
+                    <p className="truncate text-[9px] text-[#8e8e93]">{learned ? t.desc : `우정 Lv.${t.level} · 눌러서 방법 보기`}</p>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

@@ -228,6 +228,106 @@ export interface DailyCare {
   sleep: boolean;
 }
 
+// ── 돌봄 포인트 ⭐ & daily limits (study first, then play — not forever) ──
+
+/**
+ * Care points (⭐) are what care activities cost. They are only earned by
+ * learning: answering care-room questions *correctly*, finishing a diary, or
+ * studying English in the vocab app.
+ */
+export const CP = {
+  welcome: 5,
+  perCorrect: 1,
+  perDiary: 3,
+  /** Vocab-app stars per ⭐. */
+  starsPerCp: 8,
+  /** Bank cap, so points can't be hoarded for a marathon session. */
+  max: 40,
+};
+
+/**
+ * Cost of the next activity grows a little through the day (1,1,1,1,2,2,2,2,3…),
+ * so the first few are easy and a long session needs more study.
+ */
+export function activityCost(doneToday: number) {
+  return 1 + Math.floor(doneToday / 4);
+}
+
+export const DAILY = {
+  /** Care activities (feeding, bath, brushing, walk, sleep, friend play) per day. */
+  activities: 12,
+  /** Extra activities bought with one 💖 heart. */
+  extendBy: 4,
+  /** Heart extensions allowed per day. */
+  maxExtensions: 2,
+  /** Friendship XP the main buddy can gain per day. */
+  xpBuddy: 30,
+  /** XP each shop friend can gain per day. */
+  xpFriend: 12,
+};
+
+/** Vocab-app stars per friendship XP. */
+export const STARS_PER_XP = 5;
+
+/** Shop friends grow too — five levels, a bit bigger each level. */
+export const FRIEND_LEVELS = [0, 10, 25, 45, 70];
+
+export function friendLevelOf(xp: number): FriendshipLevel {
+  let idx = 0;
+  for (let i = 0; i < FRIEND_LEVELS.length; i++) if (xp >= FRIEND_LEVELS[i]) idx = i;
+  const next = FRIEND_LEVELS[idx + 1];
+  if (next === undefined) return { level: idx + 1, progress: 100, toNext: null };
+  return {
+    level: idx + 1,
+    progress: Math.round(((xp - FRIEND_LEVELS[idx]) / (next - FRIEND_LEVELS[idx])) * 100),
+    toNext: next - xp,
+  };
+}
+
+export type FriendAction = 'snack' | 'play' | 'pat';
+export const FRIEND_ACTIONS: Record<FriendAction, { name: string; emoji: string; xp: number; usesCp: boolean; counts: boolean }> = {
+  snack: { name: '간식 주기', emoji: '🍪', xp: 3, usesCp: false, counts: true },
+  play: { name: '같이 놀기', emoji: '🎾', xp: 4, usesCp: true, counts: true },
+  pat: { name: '쓰다듬기', emoji: '🤲', xp: 1, usesCp: false, counts: false },
+};
+
+/**
+ * Why something can't be done right now, and what to do about it. Returned
+ * (not thrown) by the server so the child always sees the real reason.
+ */
+export type BlockCode =
+  | 'cp' | 'limit' | 'xpcap' | 'full' | 'tired' | 'stock' | 'egg' | 'locked'
+  | 'nohearts' | 'maxext' | 'pause' | 'tooFast' | 'notOwned' | 'other';
+
+export interface Block {
+  code: BlockCode;
+  emoji: string;
+  title: string;
+  reason: string;
+  howTo: string[];
+}
+
+export interface DailyPlay {
+  activities: number;
+  limit: number;
+  extensions: number;
+  xp: number;
+  /** ⭐ cost of the next activity. */
+  nextCost: number;
+}
+
+export interface FriendCareState {
+  xp: number;
+  xpToday: number;
+}
+
+/** Rewards that just arrived from studying elsewhere (shown once). */
+export interface StudyRewards {
+  vocabXp: number;
+  vocabCp: number;
+  diaryCp: number;
+}
+
 /** Shape returned by the pet server actions. */
 export interface PetState {
   fullness: number;
@@ -245,4 +345,10 @@ export interface PetState {
   /** Diaries still needed for the next cake. */
   nextCakeIn: number;
   vocabConnected: boolean;
+  /** 돌봄 포인트 ⭐ */
+  cp: number;
+  daily: DailyPlay;
+  friends: Record<string, FriendCareState>;
+  quizLevel: { english: number; math: number };
+  rewards: StudyRewards | null;
 }

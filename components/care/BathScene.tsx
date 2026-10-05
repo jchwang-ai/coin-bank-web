@@ -263,6 +263,7 @@ export default function BathScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk | n
             tone="sky"
             className="flex-1"
             onClick={() => {
+              if (!ctx.precheck(true)) return;
               playPop();
               finishing.current = false;
               setStep('soap');
@@ -276,7 +277,7 @@ export default function BathScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk | n
             🛁 {step === 'done' ? '또 목욕하기' : '목욕 시작'}
           </SceneButton>
         )}
-        <SceneButton tone="emerald" className="flex-1" onClick={() => setTeeth(true)}>
+        <SceneButton tone="emerald" className="flex-1" onClick={() => ctx.precheck(true) && setTeeth(true)}>
           🪥 양치하기
         </SceneButton>
       </div>

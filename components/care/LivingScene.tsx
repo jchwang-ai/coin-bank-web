@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { playBoing, playPop, playSparkle, playSqueak } from '@/lib/sound';
 import { PetSprite, SpeechBubble, SpritePose, Talk, capturePointer, localPoint, useParticles } from './common';
 import { SceneCtx, SceneId } from './types';
+import { ShopItem } from '@/lib/characterShop';
+import { friendLevelOf } from '@/lib/petCare';
+import { ItemIcon } from '@/components/CreatureArt';
 
 const CHECKLIST: Array<{ key: 'fed' | 'bath' | 'brush' | 'walk' | 'sleep'; label: string; emoji: string; scene: SceneId }> = [
   { key: 'fed', label: '밥', emoji: '🍽️', scene: 'kitchen' },
@@ -16,7 +19,17 @@ const CHECKLIST: Array<{ key: 'fed' | 'bath' | 'brush' | 'walk' | 'sleep'; label
 const TAP_ACTS = ['tada', 'spin', 'squash', 'wiggle'];
 
 /** 거실: pet, chat, stroke for cuddles, clean up after it, daily checklist. */
-export default function LivingScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk | null }) {
+export default function LivingScene({
+  ctx,
+  talk,
+  friends = [],
+  onFriend,
+}: {
+  ctx: SceneCtx;
+  talk: Talk | null;
+  friends?: ShopItem[];
+  onFriend?: (id: string) => void;
+}) {
   const { pet, size, say } = ctx;
   const ref = useRef<HTMLDivElement>(null);
   const { spawn, layer } = useParticles();
@@ -160,6 +173,25 @@ export default function LivingScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk |
           ))}
         </div>
       </div>
+
+      {/* Friends from the shop live here too — tap one to look after it */}
+      {friends.length > 0 && (
+        <div className="absolute inset-x-3 top-[118px] z-20 rounded-2xl bg-white/85 px-3 py-2 shadow-sm backdrop-blur">
+          <p className="text-[11px] font-bold text-[#1c1c1e]">🐾 같이 사는 친구들 · 눌러서 돌봐주기</p>
+          <div className="mt-1.5 flex gap-2 overflow-x-auto pb-0.5">
+            {friends.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => onFriend?.(f.id)}
+                className="flex shrink-0 flex-col items-center rounded-xl bg-violet-50 px-2 py-1 active:scale-90"
+              >
+                <ItemIcon item={f} size={30} />
+                <span className="text-[9px] font-bold text-violet-600">Lv.{friendLevelOf(pet.friends[f.id]?.xp ?? 0).level}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Toy */}
       <button

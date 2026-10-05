@@ -91,6 +91,9 @@ export default function GroomScene({ ctx, talk }: { ctx: SceneCtx; talk: Talk | 
       style={{ touchAction: 'none' }}
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest('button')) return;
+        if (tab !== 'brush') return;
+        // Brushing is a care activity — make sure it's allowed before starting.
+        if (!meta.current.done && tangles.every((v) => v === 1) && !ctx.precheck(true)) return;
         setBrushing(true);
         onBrush(e);
       }}

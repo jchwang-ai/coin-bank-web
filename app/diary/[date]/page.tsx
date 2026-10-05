@@ -369,7 +369,7 @@ export default function DiaryDatePage() {
             )}
             {applesEarned > 0 && (
               <p className="animate-pop-in mt-3 rounded-2xl bg-red-50 px-3 py-2 text-[14px] font-bold text-red-500">
-                🍎 사과 {applesEarned}개를 받았어요! 친구에게 주러 가요
+                🍎 사과 {applesEarned}개 + ⭐ 돌봄 포인트 3개를 받았어요!
               </p>
             )}
             <EmojiBurst

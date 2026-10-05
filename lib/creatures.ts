@@ -32,7 +32,7 @@ export type Art =
 export type Voice =
   | 'tweet' | 'buzz' | 'squeak' | 'roar' | 'blub' | 'pop'
   // recorded cries
-  | 'bark' | 'meow' | 'peep' | 'neigh' | 'hoot' | 'croak' | 'quack';
+  | 'bark' | 'meow' | 'peep' | 'neigh' | 'hoot' | 'croak' | 'quack' | 'bunny';
 
 export interface Creature {
   loco: Loco;
@@ -84,7 +84,7 @@ const BY_ID: Record<string, Creature> = {
   comp_snail: { loco: 'crawl', art: emoji('🐌'), size: 34, speed: 9, voice: 'pop' },
   comp_turtle: { loco: 'crawl', art: emoji('🐢'), size: 42, speed: 16, voice: 'pop' },
   comp_chick: { loco: 'hop', art: emoji('🐥'), size: 36, speed: 55, voice: 'peep' },
-  comp_bunny: { loco: 'hop', art: emoji('🐇'), size: 44, speed: 80, voice: 'squeak' },
+  comp_bunny: { loco: 'hop', art: emoji('🐇'), size: 44, speed: 80, voice: 'bunny' },
   comp_puppy: { loco: 'walk', art: emoji('🐕'), size: 50, speed: 70, voice: 'bark' },
   comp_kitten: { loco: 'walk', art: emoji('🐈'), size: 46, speed: 55, voice: 'meow' },
 

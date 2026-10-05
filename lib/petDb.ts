@@ -49,7 +49,67 @@ export async function ensurePetTables() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
   `;
+  // ── Study-gated care (돌봄 포인트) ────────────────────────────────
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS cp INTEGER NOT NULL DEFAULT 5`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS quiz_level_en INTEGER NOT NULL DEFAULT 1`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS quiz_level_math INTEGER NOT NULL DEFAULT 1`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS quiz_streak INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS quiz_wrong INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS quiz_pause_until TIMESTAMP WITH TIME ZONE`;
+  // Study rewards already converted. NULL = not started yet (first visit
+  // snapshots the current totals so only *new* study is rewarded).
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS vocab_xp_stars INTEGER`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS vocab_cp_stars INTEGER`;
+  await sql`ALTER TABLE pet_care ADD COLUMN IF NOT EXISTS diaries_claimed INTEGER`;
+  // Who ate it: NULL = the main buddy, otherwise a shop friend's item id.
+  await sql`ALTER TABLE pet_feedings ADD COLUMN IF NOT EXISTS target VARCHAR(80)`;
+
+  // One row per child per (Korean) day: activity count, heart extensions,
+  // and the main buddy's XP gained that day (daily growth cap).
+  await sql`
+    CREATE TABLE IF NOT EXISTS pet_daily (
+      user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+      day DATE NOT NULL,
+      activities INTEGER NOT NULL DEFAULT 0,
+      extensions INTEGER NOT NULL DEFAULT 0,
+      xp INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, day)
+    )
+  `;
+  // Issued questions. The answer never leaves the server; a row can only be
+  // answered once, so points can't be replayed or guessed for free.
+  await sql`
+    CREATE TABLE IF NOT EXISTS pet_quiz (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+      subject VARCHAR(10) NOT NULL,
+      level INTEGER NOT NULL,
+      answer TEXT NOT NULL,
+      explain TEXT,
+      given TEXT,
+      correct BOOLEAN,
+      issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      answered_at TIMESTAMP WITH TIME ZONE
+    )
+  `;
+  // Growth of the shop friends.
+  await sql`
+    CREATE TABLE IF NOT EXISTS friend_care (
+      user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+      item_id VARCHAR(80) NOT NULL,
+      xp INTEGER NOT NULL DEFAULT 0,
+      xp_day DATE,
+      xp_today INTEGER NOT NULL DEFAULT 0,
+      pat_day DATE,
+      PRIMARY KEY (user_id, item_id)
+    )
+  `;
   tablesReady = true;
+}
+
+/** Today's date in Korea as YYYY-MM-DD. */
+export function koreaDay(now = new Date()) {
+  return new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
 }
 
 /** Every gem spent in this app: dress-up items + food. */

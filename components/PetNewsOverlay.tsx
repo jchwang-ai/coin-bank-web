@@ -4,7 +4,7 @@ import { Trick } from '@/lib/petCare';
 import EmojiBurst from './EmojiBurst';
 
 /** Bump when there's a new batch of features to announce to the child. */
-export const FEATURE_INTRO_KEY = 'diary-feature-intro-v3';
+export const FEATURE_INTRO_KEY = 'diary-feature-intro-v4';
 
 export function hasSeenFeatureIntro() {
   try {
@@ -23,12 +23,12 @@ export function markFeatureIntroSeen() {
 }
 
 const NEWS = [
-  { emoji: '🏠', title: '친구 돌보기가 생겼어요!', body: '거실·부엌·욕실·미용실·산책·침실을 오가며 친구를 돌봐요' },
-  { emoji: '🛒', title: '💎 보석으로 먹이를 사요', body: '영어 공부로 모은 보석으로 사 줄 수 있어요. 친구마다 제일 좋아하는 음식이 있어요!' },
-  { emoji: '🛁', title: '목욕 · 양치 · 빗질', body: '거품 내고 헹구고 말려주면 반짝반짝해져요' },
-  { emoji: '🌳', title: '같이 산책 가요', body: '길에서 나비·꽃·친구를 만나고, 간식을 주울 때도 있어요' },
-  { emoji: '💬', title: '친구가 말을 해요', body: '누르면 귀여운 말풍선이 뜨고 진짜 동물 울음소리를 내요' },
-  { emoji: '🎨', title: '꾸미기 · 털 색 바꾸기', body: '미용실에서 옷을 입히고 털 색을 바꿔봐요' },
+  { emoji: '🧠', title: '공부방이 생겼어요!', body: '문제를 맞히면 ⭐ 돌봄 포인트가 생겨요. 영어 단어와 수학 문제가 나와요' },
+  { emoji: '⭐', title: '돌봄은 ⭐로 해요', body: '목욕·빗질·산책·재우기에 ⭐가 필요해요. 일기를 쓰거나 영어 단어를 공부해도 ⭐가 생겨요' },
+  { emoji: '🐾', title: '상점 친구들도 키워요', body: '무대에서 친구를 누르고 💞 돌봐주기! 레벨이 오르면 조금씩 커져요' },
+  { emoji: '💞', title: '영어 공부로도 우정이 자라요', body: '우정은 하루에 조금씩만 자라요. 매일 오면 쑥쑥!' },
+  { emoji: '⏰', title: '하루 돌봄은 12번까지', body: '다 쓰면 💖 하트 1개로 4번 더 할 수 있어요' },
+  { emoji: '🔒', title: '잠긴 건 눌러보세요', body: '왜 잠겼는지, 어떻게 하면 열리는지 알려줘요' },
 ];
 
 export function FeatureIntroOverlay({ onClose }: { onClose: () => void }) {
@@ -36,8 +36,8 @@ export function FeatureIntroOverlay({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 px-5 backdrop-blur-sm">
       <div className="animate-stamp-in relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white px-5 py-5 shadow-2xl">
         <p className="text-center text-5xl">🎁</p>
-        <p className="mt-2 text-center text-[21px] font-bold text-[#1c1c1e]">새로운 기능이 또 생겼어요!</p>
-        <p className="mt-0.5 text-center text-[13px] text-[#8e8e93]">진짜 반려동물처럼 돌봐줄 수 있어요</p>
+        <p className="mt-2 text-center text-[21px] font-bold text-[#1c1c1e]">새로운 기능이 생겼어요!</p>
+        <p className="mt-0.5 text-center text-[13px] text-[#8e8e93]">공부하면 친구를 더 많이 돌볼 수 있어요</p>
 
         <div className="mt-4 space-y-2">
           {NEWS.map((n, i) => (
