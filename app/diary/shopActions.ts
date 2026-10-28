@@ -4,7 +4,7 @@ import { sql } from '@vercel/postgres';
 import { Motion, Rarity, ShopItem, itemById, SLOTS, SlotId } from '@/lib/characterShop';
 import { inferItem } from '@/lib/customItem';
 import { getEarnedGems } from '@/lib/vocabGems';
-import { getSpentGems } from '@/lib/petDb';
+import { getGemAdjustment, getSpentGems } from '@/lib/petDb';
 
 /**
  * Child-invented items live in the DB (they're created at runtime) while the
@@ -76,9 +76,10 @@ export async function getShopState() {
   try {
     const userId = await requireChildId();
 
-    const [earned, spent, owned, equipped, wishes] = await Promise.all([
+    const [earned, spent, adjust, owned, equipped, wishes] = await Promise.all([
       getEarnedGems(),
       getSpentGems(userId),
+      getGemAdjustment(userId),
       sql`SELECT item_id, cost_paid, acquired_at FROM character_items WHERE user_id = ${userId}`,
       sql`SELECT slot, item_id FROM character_equipped WHERE user_id = ${userId}`,
       sql`
@@ -89,9 +90,9 @@ export async function getShopState() {
     ]);
 
     return {
-      gemsEarned: earned.stars,
+      gemsEarned: earned.stars + adjust,
       gemsSpent: spent,
-      gemsLeft: Math.max(0, earned.stars - spent),
+      gemsLeft: Math.max(0, earned.stars - spent + adjust),
       vocabConnected: earned.connected,
       ownedIds: (owned.rows as any[]).map((r) => r.item_id as string),
       equipped: (equipped.rows as any[]).reduce<Record<string, string>>((acc, r) => {
@@ -125,12 +126,12 @@ export async function buyItem(itemId: string) {
     `;
     if (already.rows.length) throw new Error('이미 가지고 있어요');
 
-    const [earned, spent] = await Promise.all([getEarnedGems(), getSpentGems(userId)]);
+    const [earned, spent, adjust] = await Promise.all([getEarnedGems(), getSpentGems(userId), getGemAdjustment(userId)]);
     if (!earned.connected) {
       throw new Error('보석을 불러올 수 없어요. 잠시 후 다시 해주세요');
     }
 
-    const left = earned.stars - spent;
+    const left = earned.stars - spent + adjust;
     if (left < item.cost) {
       throw new Error(`보석이 ${item.cost - left}개 더 필요해요`);
     }

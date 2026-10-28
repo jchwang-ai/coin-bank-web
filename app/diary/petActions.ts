@@ -2,7 +2,7 @@
 
 import { sql } from '@vercel/postgres';
 import { getEarnedGems } from '@/lib/vocabGems';
-import { ensurePetTables, getSpentGems, koreaDay } from '@/lib/petDb';
+import { ensurePetTables, getGemAdjustment, getSpentGems, koreaDay } from '@/lib/petDb';
 import { itemById } from '@/lib/characterShop';
 import { QuizSubject, makeEnglish, makeMath, normalizeAnswer } from '@/lib/quiz';
 import { EGG_BLOCK, cpBlock, limitBlock } from '@/lib/petBlocks';
@@ -294,7 +294,7 @@ export async function buyFood(foodId: string, qty: number) {
     return { ok: false, block: { code: 'other', emoji: '❓', title: '살 수 없어요', reason: '', howTo: [] } } as Fail;
   }
   const { userId, state } = await load();
-  const [earned, spent] = await Promise.all([getEarnedGems(), getSpentGems(userId)]);
+  const [earned, spent, adjust] = await Promise.all([getEarnedGems(), getSpentGems(userId), getGemAdjustment(userId)]);
   if (!earned.connected) {
     return {
       ok: false,
@@ -302,7 +302,7 @@ export async function buyFood(foodId: string, qty: number) {
     } as Fail;
   }
   const cost = food.price * qty;
-  const left = earned.stars - spent;
+  const left = earned.stars - spent + adjust;
   if (left < cost) {
     return {
       ok: false,

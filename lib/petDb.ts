@@ -104,6 +104,17 @@ export async function ensurePetTables() {
       PRIMARY KEY (user_id, item_id)
     )
   `;
+  // Parent-made gem corrections (e.g. re-syncing the balance to the vocab
+  // app's count). Added on top of earned − spent; never edits either side.
+  await sql`
+    CREATE TABLE IF NOT EXISTS gem_adjustments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES child_account(id) ON DELETE CASCADE,
+      amount INTEGER NOT NULL,
+      note TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
   tablesReady = true;
 }
 
@@ -121,4 +132,11 @@ export async function getSpentGems(userId: string): Promise<number> {
       (SELECT COALESCE(SUM(cost_paid), 0) FROM pet_food_stock WHERE user_id = ${userId}) AS spent
   `;
   return Number((r.rows[0] as { spent: unknown }).spent) || 0;
+}
+
+/** Sum of parent-made corrections; balance = earned − spent + this. */
+export async function getGemAdjustment(userId: string): Promise<number> {
+  await ensurePetTables();
+  const r = await sql`SELECT COALESCE(SUM(amount), 0) AS amount FROM gem_adjustments WHERE user_id = ${userId}`;
+  return Number((r.rows[0] as { amount: unknown }).amount) || 0;
 }
